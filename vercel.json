@@ -6,18 +6,12 @@
     "api/index.py": {
       "runtime": "@vercel/python@4.5.0",
       "maxDuration": 60,
-      "includeFiles": [
-        "backend/services/orchestrator-service/**",
-        "backend/services/mcp-tools-service/**"
-      ]
+      "includeFiles": "backend/services/**"
     },
     "api/messages.py": {
       "runtime": "@vercel/python@4.5.0",
       "maxDuration": 30,
-      "includeFiles": [
-        "backend/services/teams-adapter-service/**",
-        "backend/services/orchestrator-service/**"
-      ]
+      "includeFiles": "backend/services/**"
     }
   },
   "rewrites": [
