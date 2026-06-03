@@ -1,0 +1,47 @@
+services:
+  orchestrator-service:
+    build:
+      context: ./backend/services
+      dockerfile: orchestrator-service/Dockerfile
+    container_name: tagent-orchestrator-service
+    env_file:
+      - ./backend/services/orchestrator-service/.env
+    environment:
+      # Override the local Windows path — MCP tools are bundled at /app/mcp_tools
+      - MCP_EXTERNAL_CWD=/app/mcp_tools
+      - MCP_EXTERNAL_COMMAND=python
+      - MCP_EXTERNAL_ARGS=["main.py"]
+    volumes:
+      - ${HOME:-~}/.tagent:/root/.tagent
+      - ${HOME:-~}/.config/google-calendar-mcp:/root/.config/google-calendar-mcp
+    ports:
+      - "8001:8001"
+    restart: unless-stopped
+
+  teams-adapter-service:
+    build:
+      context: ./backend/services/teams-adapter-service
+    container_name: tagent-teams-adapter-service
+    env_file:
+      - ./backend/services/orchestrator-service/.env
+    depends_on:
+      - orchestrator-service
+    ports:
+      - "3978:3978"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: tagent-frontend
+    environment:
+      # Empty string → frontend JS uses relative paths → Vite proxy forwards to orchestrator
+      - VITE_ORCHESTRATOR_BASE_URL=
+      # Internal Docker service URL used by the Vite proxy (server-side only)
+      - ORCHESTRATOR_INTERNAL_URL=http://orchestrator-service:8001
+    depends_on:
+      - orchestrator-service
+    ports:
+      - "5173:5173"
+    restart: unless-stopped
+

@@ -1,0 +1,20 @@
+[project]
+name = "tagent-teams-adapter-service"
+version = "0.1.0"
+description = "Teams channel adapter microservice for Tagent"
+requires-python = ">=3.12"
+dependencies = [
+    "aiohttp>=3.9",
+    "botbuilder-core>=4.16",
+    "botbuilder-schema>=4.16",
+    "httpx>=0.27",
+    "pydantic>=2.7",
+    "pydantic-settings>=2.3",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tagent"]

@@ -1,0 +1,33 @@
+{
+  "version": 2,
+  "buildCommand": "cd frontend && npm install && npm run build",
+  "outputDirectory": "frontend/dist",
+  "functions": {
+    "api/index.py": {
+      "runtime": "@vercel/python@4.5.0",
+      "maxDuration": 60,
+      "includeFiles": [
+        "backend/services/orchestrator-service/**",
+        "backend/services/mcp-tools-service/**"
+      ]
+    },
+    "api/messages.py": {
+      "runtime": "@vercel/python@4.5.0",
+      "maxDuration": 30,
+      "includeFiles": [
+        "backend/services/teams-adapter-service/**",
+        "backend/services/orchestrator-service/**"
+      ]
+    }
+  },
+  "rewrites": [
+    { "source": "/api/messages", "destination": "/api/messages" },
+    { "source": "/orchestrate", "destination": "/api/index" },
+    { "source": "/approve", "destination": "/api/index" },
+    { "source": "/health", "destination": "/api/index" },
+    { "source": "/settings/:path*", "destination": "/api/index" },
+    { "source": "/auth/:path*", "destination": "/api/index" },
+    { "source": "/tool/:path*", "destination": "/api/index" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

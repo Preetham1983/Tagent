@@ -1,0 +1,22 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+/temp
+
+# Environment files (secrets)
+.env
+**/.env
+
+# Node
+node_modules/
+frontend/dist/
+
+# Vercel
+.vercel

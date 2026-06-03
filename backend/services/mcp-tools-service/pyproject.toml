@@ -1,0 +1,16 @@
+[project]
+name = "tagent-mcp-tools-service"
+version = "0.1.0"
+description = "MCP tools microservice for Tagent"
+requires-python = ">=3.12"
+dependencies = [
+    "httpx>=0.28.1",
+    "mcp>=1.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tagent"]
