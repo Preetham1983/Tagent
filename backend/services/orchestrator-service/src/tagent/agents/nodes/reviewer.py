@@ -8,12 +8,19 @@ from tagent.domain.value_objects.intent import Intent
 
 # Map intents to required approval levels
 _APPROVAL_LEVELS: dict[Intent, ApprovalLevel] = {
+    # Read-only / informational — no approval needed
     Intent.SUMMARIZE_MEETING: ApprovalLevel.AUTO,
     Intent.GENERAL_CHAT: ApprovalLevel.AUTO,
     Intent.QUERY_TASKS: ApprovalLevel.AUTO,
+    Intent.QUERY_CALENDAR: ApprovalLevel.AUTO,
+    Intent.GET_USER_INFO: ApprovalLevel.AUTO,
+    Intent.VALIDATE_RULE: ApprovalLevel.AUTO,
+    Intent.UNKNOWN: ApprovalLevel.AUTO,
+    # Write operations — ask for confirmation
     Intent.SCHEDULE_MEETING: ApprovalLevel.CONFIRM,
     Intent.CREATE_TASK: ApprovalLevel.CONFIRM,
     Intent.UPDATE_TASK: ApprovalLevel.CONFIRM,
+    # High-risk — explicit sign-off required
     Intent.SEND_MESSAGE: ApprovalLevel.EXPLICIT,
 }
 

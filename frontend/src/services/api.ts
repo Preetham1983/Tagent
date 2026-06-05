@@ -6,6 +6,16 @@ type OrchestratePayload = {
   message: string;
 };
 
+/** Extract the FastAPI detail string from a non-OK response, falling back to a default message. */
+async function extractError(response: Response, fallback: string): Promise<string> {
+  try {
+    const body = await response.json();
+    return (body as { detail?: string }).detail ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
+
 export class OrchestratorApi {
   constructor(private readonly baseUrl: string) {}
 
@@ -15,7 +25,7 @@ export class OrchestratorApi {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    if (!response.ok) throw new Error("Orchestrator request failed");
+    if (!response.ok) throw new Error(await extractError(response, "Orchestrator request failed"));
     return response.json() as Promise<OrchestrateResponse>;
   }
 
@@ -25,7 +35,7 @@ export class OrchestratorApi {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(settings),
     });
-    if (!response.ok) throw new Error("Failed to save Jira settings");
+    if (!response.ok) throw new Error(await extractError(response, "Failed to save Jira settings"));
     return response.json();
   }
 
@@ -35,7 +45,7 @@ export class OrchestratorApi {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(settings),
     });
-    if (!response.ok) throw new Error("Failed to save calendar settings");
+    if (!response.ok) throw new Error(await extractError(response, "Failed to save calendar settings"));
     return response.json();
   }
 
@@ -45,13 +55,13 @@ export class OrchestratorApi {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(settings),
     });
-    if (!response.ok) throw new Error("Failed to save Google Calendar settings");
+    if (!response.ok) throw new Error(await extractError(response, "Failed to save Google Calendar settings"));
     return response.json();
   }
 
   async getIntegrationStatus(): Promise<IntegrationStatus> {
     const response = await fetch(`${this.baseUrl}/settings/status`);
-    if (!response.ok) throw new Error("Failed to fetch integration status");
+    if (!response.ok) throw new Error(await extractError(response, "Failed to fetch integration status"));
     return response.json() as Promise<IntegrationStatus>;
   }
 
@@ -60,10 +70,7 @@ export class OrchestratorApi {
       method: "POST",
       headers: { "Content-Type": "application/json" },
     });
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({ detail: "Failed to start Teams auth" }));
-      throw new Error((err as { detail?: string }).detail ?? "Failed to start Teams auth");
-    }
+    if (!response.ok) throw new Error(await extractError(response, "Failed to start Teams auth"));
     return response.json() as Promise<TeamsDeviceCodeResponse>;
   }
 
@@ -73,10 +80,7 @@ export class OrchestratorApi {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ device_code: deviceCode }),
     });
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({ detail: "Poll failed" }));
-      throw new Error((err as { detail?: string }).detail ?? "Poll failed");
-    }
+    if (!response.ok) throw new Error(await extractError(response, "Poll failed"));
     return response.json() as Promise<TeamsAuthPollResponse>;
   }
 
@@ -86,10 +90,7 @@ export class OrchestratorApi {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(req),
     });
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({ detail: "Tool call failed" }));
-      throw new Error((err as { detail?: string }).detail ?? "Tool call failed");
-    }
+    if (!response.ok) throw new Error(await extractError(response, "Tool call failed"));
     return response.json() as Promise<import("../types").DirectToolResponse>;
   }
 }
