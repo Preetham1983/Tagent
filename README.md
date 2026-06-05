@@ -34,7 +34,6 @@ Tagent is an **AI orchestration agent** that connects to your real tools — Git
 | 🤝 **Teams Native** | Full Microsoft Teams bot adapter — chat with your agent in Teams |
 | 🌐 **Web UI** | Clean React chat interface with MVC architecture |
 | 🐳 **Docker Ready** | One `docker compose up` and you're running |
-| ☁️ **Vercel Deploy** | Deploy the frontend + API instantly to Vercel |
 
 ---
 
@@ -189,32 +188,6 @@ When you send a message, Tagent runs it through a **5-node LangGraph pipeline**:
 ```
 
 The Human-in-the-Loop gate means Tagent will **never silently delete a Jira ticket, push to main, or send a Teams message** without your explicit approval.
-
----
-
-## 🌍 Deployment
-
-### Vercel (Frontend + API)
-
-```bash
-npm i -g vercel
-vercel deploy
-```
-
-The `vercel.json` is pre-configured to build the React frontend and expose the Python API routes under `/api/*`.
-
-### Environment Variables
-
-| Variable | Description |
-|---|---|
-| `OPENAI_API_KEY` | LLM provider key |
-| `JIRA_BASE_URL` | Your Jira instance URL |
-| `JIRA_API_TOKEN` | Jira API token |
-| `GITHUB_TOKEN` | GitHub personal access token |
-| `NOTION_TOKEN` | Notion integration token |
-| `MICROSOFT_APP_ID` | Teams bot app ID |
-| `MICROSOFT_APP_PASSWORD` | Teams bot app password |
-| `GOOGLE_CALENDAR_CREDENTIALS` | Path to Google OAuth credentials |
 
 ---
 
