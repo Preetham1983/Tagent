@@ -52,9 +52,19 @@ export type ToolId =
   | "read_chat_messages"
   | "get_meeting_attendance"
   | "get_meeting_transcript"
+  | "analyze_meeting"
   // Smart Briefing
   | "get_daily_briefing"
-  | "generate_standup";
+  | "generate_standup"
+  // Automation Tools
+  | "nudge_colleague"
+  | "chat_to_jira"
+  | "negotiate_meeting"
+  | "smart_ooo_handoff"
+  | "analyze_onedrive_transcript"
+  // DACL Business Rules
+  | "validate_business_rule"
+  | "list_available_policies";
 
 export type UserSuggestion = {
   name: string;

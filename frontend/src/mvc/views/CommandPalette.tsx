@@ -217,9 +217,79 @@ const MS_TEAMS_365_TOOLS: CommandTool[] = [
     id: "get_meeting_transcript",
     label: "Meeting Transcript",
     icon: "🎙️",
-    description: "Fetch transcript of a recent Teams meeting",
+    description: "Fetch transcript of a recent Teams meeting (requires admin permission)",
     category: "Microsoft 365",
     placeholderQuery: "e.g. Sprint Review  (leave blank for latest)",
+  },
+  {
+    id: "analyze_meeting",
+    label: "AI Meeting Analysis (Chat)",
+    icon: "🧠",
+    description: "Analyze a meeting — reads chat, attendees & generates AI summary with action items",
+    category: "Microsoft 365",
+    placeholderQuery: "e.g. Sprint Review  (leave blank for latest meeting)",
+  },
+  {
+    id: "analyze_onedrive_transcript",
+    label: "AI Meeting Analysis (OneDrive Transcript)",
+    icon: "📄",
+    description: "Analyze a meeting by downloading its raw .vtt/.docx transcript from your OneDrive",
+    category: "Microsoft 365",
+    placeholderQuery: "e.g. Sprint Review",
+  },
+];
+
+export const AUTOMATION_TOOLS: CommandTool[] = [
+  {
+    id: "nudge_colleague",
+    label: "Polite Nudger (Teams)",
+    icon: "⏰",
+    description: "Send a polite follow-up DM to a colleague about a blocker (Jira/GitHub)",
+    category: "Automation",
+    placeholderQuery: "e.g. Alex, PR-42",
+  },
+  {
+    id: "chat_to_jira",
+    label: "Chat to Jira (Summarize)",
+    icon: "📥",
+    description: "Turn your recent 1:1 chat with a colleague into a Jira ticket",
+    category: "Automation",
+    placeholderQuery: "e.g. Alex",
+  },
+  {
+    id: "negotiate_meeting",
+    label: "Find The Gap (Meet)",
+    icon: "🔀",
+    description: "Find mutual free time with a colleague and DM them to propose it",
+    category: "Automation",
+    placeholderQuery: "e.g. Alex, Deployment discussion",
+  },
+  {
+    id: "smart_ooo_handoff",
+    label: "Smart OOO Handoff",
+    icon: "🏖️",
+    description: "Reassign your active Jira tickets to a colleague and DM them",
+    category: "Automation",
+    placeholderQuery: "e.g. Alex, tomorrow, next week",
+  },
+];
+
+export const DACL_TOOLS: CommandTool[] = [
+  {
+    id: "validate_business_rule",
+    label: "Validate Business Rule",
+    icon: "⚖️",
+    description: "Run a business rule check against the DACL engine (premium, eligibility, policy)",
+    category: "Business Rules",
+    placeholderQuery: 'e.g. {"age": 24, "tier": "BASIC", "pre_existing_conditions": 0, "product": "health_insurance"}',
+  },
+  {
+    id: "list_available_policies",
+    label: "List Available Policies",
+    icon: "📋",
+    description: "Show all business rule policies registered in the DACL engine",
+    category: "Business Rules",
+    placeholderQuery: "",
   },
 ];
 
@@ -229,6 +299,8 @@ export const ALL_TOOLS: CommandTool[] = [
   ...NOTION_TOOLS,
   ...GCAL_TOOLS,
   ...MS_TEAMS_365_TOOLS,
+  ...AUTOMATION_TOOLS,
+  ...DACL_TOOLS,
 ];
 
 type Props = {
@@ -261,30 +333,32 @@ export function CommandPalette({ filter, onSelect, onClose, anchorBottom }: Prop
         </button>
       </div>
 
-      {filtered.length === 0 && (
-        <div className="cmd-palette-empty">No matching tools</div>
-      )}
+      <div className="cmd-palette-list">
+        {filtered.length === 0 && (
+          <div className="cmd-palette-empty">No matching tools</div>
+        )}
 
-      {filtered.map((tool) => (
-        <div
-          key={tool.id}
-          className="cmd-palette-item"
-          onClick={() => onSelect(tool)}
-          role="button"
-          tabIndex={0}
-          onKeyDown={(e) => e.key === "Enter" && onSelect(tool)}
-        >
-          <span className="cmd-palette-item-icon">{tool.icon}</span>
-          <div className="cmd-palette-item-body">
-            <div className="cmd-palette-item-label">
-              <span className="cmd-palette-category">{tool.category}</span>
-              {" · "}
-              {tool.label}
+        {filtered.map((tool) => (
+          <div
+            key={tool.id}
+            className="cmd-palette-item"
+            onClick={() => onSelect(tool)}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => e.key === "Enter" && onSelect(tool)}
+          >
+            <span className="cmd-palette-item-icon">{tool.icon}</span>
+            <div className="cmd-palette-item-body">
+              <div className="cmd-palette-item-label">
+                <span className="cmd-palette-category">{tool.category}</span>
+                {" · "}
+                {tool.label}
+              </div>
+              <div className="cmd-palette-item-desc">{tool.description}</div>
             </div>
-            <div className="cmd-palette-item-desc">{tool.description}</div>
           </div>
-        </div>
-      ))}
+        ))}
+      </div>
     </div>
   );
 }

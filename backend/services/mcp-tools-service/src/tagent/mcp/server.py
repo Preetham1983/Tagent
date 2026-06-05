@@ -6,6 +6,7 @@ from mcp.server.fastmcp import FastMCP
 
 from tagent.mcp.tools.briefing_tools import register_briefing_tools
 from tagent.mcp.tools.calendar_tools import register_calendar_tools
+from tagent.mcp.tools.automation_tools import register_automation_tools
 from tagent.mcp.tools.github_tools import register_github_tools
 from tagent.mcp.tools.graph_api_tools import register_graph_api_tools
 from tagent.mcp.tools.jira_tools import register_jira_tools
@@ -23,6 +24,7 @@ def create_mcp_server() -> FastMCP:
     register_graph_api_tools(mcp)
     register_calendar_tools(mcp)
     register_briefing_tools(mcp)
+    register_automation_tools(mcp)
     register_jira_tools(mcp)
     register_teams_tools(mcp)
     register_memory_tools(mcp)

@@ -61,6 +61,29 @@ _STEP_HINTS: dict[str, str] = {
         "Answer the user's question helpfully and concisely as an enterprise AI assistant "
         "integrated with Microsoft Teams, Jira, and calendar systems."
     ),
+    # DACL business rule validation steps
+    "extract_validation_params": (
+        "Extract business rule validation parameters from the user's message. "
+        "Output ONLY a valid JSON object with these keys: "
+        "age (integer), tier (string, e.g. BASIC/STANDARD/PREMIUM), "
+        "pre_existing_conditions (integer), product (string, e.g. health_insurance). "
+        'Example: {"age": 24, "tier": "BASIC", "pre_existing_conditions": 0, "product": "health_insurance"}'
+    ),
+    "validate_rule": (
+        "Call the DACL business rule engine to validate the extracted parameters "
+        "and return the calculated premium or validation result."
+    ),
+    "format_validation_result": (
+        "Format the business rule validation result into a clear, friendly response for the user. "
+        "Include the calculated premium percentage/amount, the tier, age, and any conditions. "
+        "Explain what the result means in plain English."
+    ),
+}
+
+# Steps that should call the external DACL MCP server via SSE
+_STEP_TO_DACL_TOOL: dict[str, str] = {
+    "validate_rule": "validate_business_rule",
+    "list_policies": "list_available_policies",
 }
 
 # Steps that should directly call an MCP tool and use the result
@@ -134,6 +157,59 @@ async def _call_mcp_tool(tool_name: str, arguments: dict) -> dict | None:
                 return {"status": "ok", "output": "Tool returned no content."}
     except Exception as exc:
         return {"status": "error", "output": f"MCP tool call failed: {str(exc)[:200]}"}
+
+
+async def _call_dacl_mcp_tool(tool_name: str, arguments: dict) -> dict | None:
+    """Call the external DACL MCP server via SSE transport and return the parsed result."""
+    from tagent.infrastructure.config.settings import Settings
+
+    s = Settings()
+    url = s.dacl_mcp_url or "http://localhost:8080/sse"
+    api_key = s.dacl_mcp_api_key or ""
+
+    headers: dict[str, str] = {}
+    if api_key:
+        headers["X-API-Key"] = api_key
+    # When routing through host.docker.internal the server sees the wrong Host header
+    # and returns 421 Misdirected Request — override it to what the server expects.
+    if "host.docker.internal" in url:
+        from urllib.parse import urlparse as _urlparse
+        _p = _urlparse(url)
+        headers["Host"] = f"localhost:{_p.port}" if _p.port else "localhost"
+
+    try:
+        from mcp.client.sse import sse_client
+        from mcp.client.session import ClientSession
+
+        async with sse_client(url, headers=headers) as (read, write):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                result = await session.call_tool(tool_name, arguments)
+
+                parts = []
+                for item in result.content:
+                    text = getattr(item, "text", None)
+                    if isinstance(text, str) and text.strip():
+                        parts.append(text.strip())
+
+                if parts:
+                    combined = "\n".join(parts)
+                    try:
+                        return json.loads(combined)
+                    except json.JSONDecodeError:
+                        return {"status": "ok", "output": combined}
+
+                # Fallback for structured content
+                if not parts and hasattr(result, "isError") and not result.isError:
+                    return {"status": "ok", "output": json.dumps(result.model_dump(), indent=2)}
+
+                return {"status": "ok", "output": "DACL tool returned no content."}
+    except Exception as exc:
+        error_msg = str(exc)
+        if hasattr(exc, "exceptions"):
+            sub_errors = [str(e) for e in exc.exceptions]
+            error_msg = f"{error_msg} | Sub-errors: {', '.join(sub_errors)}"
+        return {"status": "error", "output": f"DACL MCP tool call failed: {error_msg[:500]}"}
 
 
 def _parse_meeting_datetime(text: str) -> str:
@@ -371,6 +447,44 @@ async def execute(state: AgentState) -> dict:
                 f"Use this key in your JQL unless the user asks for a different project."
             )
 
+        # ── Try DACL SSE MCP tool call for business rule steps ──────
+        dacl_tool_name = _STEP_TO_DACL_TOOL.get(step_name)
+        dacl_direct_result = None
+
+        if dacl_tool_name:
+            args: dict = {}
+            if dacl_tool_name == "validate_business_rule":
+                # Parse params from the prior extract_validation_params LLM output
+                prior = next((r for r in tool_results if r["step"] == "extract_validation_params"), None)
+                if prior:
+                    raw = prior["output"]
+                    if isinstance(raw, str):
+                        import re as _re
+                        # Strip markdown fences if present
+                        clean = _re.sub(r"```[a-z]*", "", raw).strip().rstrip("`").strip()
+                        try:
+                            args = json.loads(clean)
+                        except json.JSONDecodeError:
+                            # Best-effort: pass the raw message
+                            args = {"input": user_message}
+                    elif isinstance(raw, dict):
+                        args = raw
+                else:
+                    args = {"input": user_message}
+            elif dacl_tool_name == "list_available_policies":
+                args = {}
+
+            dacl_direct_result = await _call_dacl_mcp_tool(dacl_tool_name, args)
+            if dacl_direct_result:
+                output = dacl_direct_result.get("output", str(dacl_direct_result))
+                tool_results.append({
+                    "step": step_name,
+                    "tool": dacl_tool_name,
+                    "output": output,
+                    "status": dacl_direct_result.get("status", "ok"),
+                    "source": "dacl_mcp",
+                })
+
         # ── Try direct MCP tool call for actionable steps ───────────
         mcp_tool_name = _STEP_TO_MCP_TOOL.get(step_name)
         mcp_direct_result = None
@@ -473,7 +587,6 @@ async def execute(state: AgentState) -> dict:
 
                 if prior:
                     try:
-                        import json
                         output_str = prior["output"]
                         if "```" in output_str:
                             output_str = output_str.split("```")[1].replace("json", "").strip()
@@ -511,7 +624,7 @@ async def execute(state: AgentState) -> dict:
                 })
         
         # ── Otherwise use LLM reasoning for the step ────────────────
-        if not mcp_direct_result:
+        if not mcp_direct_result and not dacl_direct_result:
             # Context enrichment
             graph_context = await _fetch_graph_data(step_name)
             mcp_context = await _fetch_mcp_context(step_name, user_message)
@@ -526,7 +639,8 @@ async def execute(state: AgentState) -> dict:
             if tool_results:
                 system_prompt += "Prior tool outputs:\n"
                 for r in tool_results:
-                    system_prompt += f"- {r['step']}: {r['output']}\n"
+                    src = f" [{r.get('source', r.get('tool', 'llm'))}]" if r.get("source") else ""
+                    system_prompt += f"- {r['step']}{src}: {r['output']}\n"
             
             if graph_context:
                 system_prompt += f"\nRelevant Microsoft Graph Data:\n{graph_context}\n"

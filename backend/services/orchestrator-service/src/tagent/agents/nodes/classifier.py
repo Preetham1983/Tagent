@@ -43,6 +43,17 @@ _KEYWORD_MAP: dict[str, Intent] = {
     "schedule today": Intent.QUERY_CALENDAR,
     "events": Intent.QUERY_CALENDAR,
     "meeting": Intent.SCHEDULE_MEETING,
+    "validate": Intent.VALIDATE_RULE,
+    "validate rule": Intent.VALIDATE_RULE,
+    "validate premium": Intent.VALIDATE_RULE,
+    "validate policy": Intent.VALIDATE_RULE,
+    "business rule": Intent.VALIDATE_RULE,
+    "rule check": Intent.VALIDATE_RULE,
+    "insurance": Intent.VALIDATE_RULE,
+    "premium": Intent.VALIDATE_RULE,
+    "policy check": Intent.VALIDATE_RULE,
+    "list policies": Intent.VALIDATE_RULE,
+    "available policies": Intent.VALIDATE_RULE,
     "user info": Intent.GET_USER_INFO,
     "my details": Intent.GET_USER_INFO,
     "who am i": Intent.GET_USER_INFO,
@@ -67,6 +78,7 @@ Given the user's message, classify it into exactly ONE of these intents:
 - query_calendar: Show today's schedule, list meetings, or check calendar
 - send_message: Send a message to a Teams channel or person
 - get_user_info: Get the signed-in user's profile, name, email, or who they are
+- validate_rule: Validate a business rule, check a premium, policy, or insurance eligibility
 - general_chat: General question, greeting, help, or anything else
 
 Respond with ONLY the intent string, nothing else. For example: general_chat

@@ -45,6 +45,11 @@ _PLAN_TEMPLATES: dict[Intent, list[str]] = {
         "fetch_user_details",
         "format_user_details",
     ],
+    Intent.VALIDATE_RULE: [
+        "extract_validation_params",
+        "validate_rule",
+        "format_validation_result",
+    ],
     Intent.GENERAL_CHAT: [
         "generate_response",
     ],

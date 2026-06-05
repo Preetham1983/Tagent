@@ -498,6 +498,102 @@ async def call_tool_direct(req: DirectToolRequest) -> dict:
             ])
             return {"status": "ok", "tool": tool_name, "response": formatted, "raw": mcp_result}
 
+    # ── DACL Business Rules — external SSE MCP at localhost:8080 ─────────────
+    _DACL_TOOLS = {"validate_business_rule", "list_available_policies"}
+    if tool_name in _DACL_TOOLS:
+        from mcp.client.sse import sse_client
+        from mcp.client.session import ClientSession as _SSEClientSession
+
+        llm = get_default_adapter()
+        dacl_url = s.dacl_mcp_url or "http://localhost:8080/sse"
+        dacl_key = s.dacl_mcp_api_key or ""
+        dacl_headers: dict[str, str] = {}
+        if dacl_key:
+            dacl_headers["X-API-Key"] = dacl_key
+        # When routing through host.docker.internal the server sees the wrong Host header
+        # and returns 421 Misdirected Request — override it to what the server expects.
+        if "host.docker.internal" in dacl_url:
+            from urllib.parse import urlparse as _urlparse
+            _p = _urlparse(dacl_url)
+            dacl_headers["Host"] = f"localhost:{_p.port}" if _p.port else "localhost"
+
+        # Build arguments from req.query
+        tool_args: dict = {}
+        if tool_name == "validate_business_rule" and req.query:
+            raw_q = req.query.strip()
+            # Support JSON input: {"age": 24, "tier": "BASIC", ...}
+            try:
+                tool_args = json.loads(raw_q)
+            except json.JSONDecodeError:
+                # Support key=value pairs: age=24, tier=BASIC, conditions=0
+                import re as _re
+                for part in _re.split(r"[,;]\s*", raw_q):
+                    kv = part.strip().split("=", 1)
+                    if len(kv) == 2:
+                        k, v = kv[0].strip(), kv[1].strip()
+                        # Coerce obvious integers
+                        tool_args[k] = int(v) if v.lstrip("-").isdigit() else v
+                if not tool_args:
+                    tool_args = {"input": raw_q}
+
+        async def _run_dacl() -> dict:
+            async with sse_client(dacl_url, headers=dacl_headers) as (r, w):
+                async with _SSEClientSession(r, w) as sess:
+                    await sess.initialize()
+                    mcp_res = await sess.call_tool(tool_name, tool_args)
+                    
+                    # Try to get text content
+                    parts = []
+                    for item in mcp_res.content:
+                        text = getattr(item, "text", None)
+                        if isinstance(text, str) and text.strip():
+                            parts.append(text.strip())
+                    
+                    # If we have structured content but no text, use that
+                    raw_output = "\n".join(parts)
+                    if not raw_output and hasattr(mcp_res, "isError") and not mcp_res.isError:
+                        # Fallback for tools that return structured data (like list_available_policies)
+                        # The SDK result might have a model_dump()
+                        data = mcp_res.model_dump()
+                        if data.get("content"):
+                             pass # already tried
+                        elif tool_name == "list_available_policies":
+                             # Specific fallback for this tool if needed
+                             pass
+                    
+                    return {"raw": raw_output or json.dumps(mcp_res.model_dump(), indent=2)}
+
+        try:
+            dacl_data = await asyncio.wait_for(_run_dacl(), timeout=30)
+        except asyncio.TimeoutError:
+            raise HTTPException(status_code=504, detail="DACL MCP server timed out.")
+        except Exception as exc:
+            # Handle ExceptionGroup (Python 3.11+) to reveal sub-exceptions
+            error_msg = str(exc)
+            if hasattr(exc, "exceptions"):
+                sub_errors = [str(e) for e in exc.exceptions]
+                error_msg = f"{error_msg} | Sub-errors: {', '.join(sub_errors)}"
+            
+            raise HTTPException(status_code=502, detail=f"DACL MCP error: {error_msg[:500]}")
+
+        formatted = await llm.complete([
+            {
+                "role": "system",
+                "content": (
+                    "You are Tagent, an enterprise AI assistant. "
+                    "The user just called the DACL business rule engine. "
+                    "Format the result clearly: show the calculated premium, "
+                    "the tier, any conditions applied, and what the result means in plain English. "
+                    "If it is a policy list, format it as a clean numbered or bulleted list."
+                ),
+            },
+            {
+                "role": "user",
+                "content": f"Tool: {tool_name}\nArgs: {json.dumps(tool_args)}\nResult:\n{dacl_data['raw']}",
+            },
+        ])
+        return {"status": "ok", "tool": tool_name, "response": formatted, "raw": dacl_data["raw"]}
+
     if not s.mcp_external_enabled:
         raise HTTPException(status_code=503, detail="MCP tools not enabled.")
 
@@ -645,10 +741,35 @@ async def call_tool_direct(req: DirectToolRequest) -> dict:
         args = {"meeting_subject": req.query or ""}
     elif tool_name == "get_meeting_transcript":
         args = {"meeting_subject": req.query or ""}
+    elif tool_name == "analyze_meeting":
+        args = {"meeting_subject": req.query or ""}
     elif tool_name == "get_daily_briefing":
         args = {}
     elif tool_name == "generate_standup":
         args = {}
+    elif tool_name == "nudge_colleague":
+        parts = [p.strip() for p in (req.query or "").split(",", 1)]
+        args = {
+            "colleague_name": parts[0] if parts else "",
+            "item_id": parts[1] if len(parts) > 1 else "Task"
+        }
+    elif tool_name == "chat_to_jira":
+        args = {"colleague_name": req.query or ""}
+    elif tool_name == "negotiate_meeting":
+        parts = [p.strip() for p in (req.query or "").split(",", 1)]
+        args = {
+            "colleague_name": parts[0] if parts else "",
+            "topic": parts[1] if len(parts) > 1 else "Quick Sync"
+        }
+    elif tool_name == "smart_ooo_handoff":
+        parts = [p.strip() for p in (req.query or "").split(",", 2)]
+        args = {
+            "backup_colleague_name": parts[0] if parts else "",
+            "start_date": parts[1] if len(parts) > 1 else "soon",
+            "end_date": parts[2] if len(parts) > 2 else "later"
+        }
+    elif tool_name == "analyze_onedrive_transcript":
+        args = {"meeting_name": req.query or ""}
     else:
         args = {"query": req.query} if req.query else {}
 
@@ -726,6 +847,85 @@ async def call_tool_direct(req: DirectToolRequest) -> dict:
                 "- List blocked issues. If none, write: None\n\n"
                 "Keep it SHORT and scannable. No extra commentary. "
                 "People should be able to read this in under 10 seconds."
+            )
+        elif tool_name == "analyze_meeting":
+            system = (
+                "You are Tagent, an enterprise AI assistant that analyzes meetings. "
+                "The user asked you to analyze a Teams meeting. You have been given meeting metadata "
+                "(subject, time, attendees) AND the meeting chat messages that were sent during the meeting.\n\n"
+                "Generate a comprehensive, well-structured meeting analysis using this format:\n\n"
+                "## 🧠 Meeting Analysis: [Subject]\n"
+                "**Date**: [formatted date] | **Duration**: [calculated] | **Organizer**: [name]\n\n"
+                "### 👥 Participants ([count])\n"
+                "List each attendee with their response status (✅ accepted, ❌ declined, ❓ tentative)\n\n"
+                "### 📋 Agenda\n"
+                "If agenda/body text exists, summarize it. If not, say 'No formal agenda was set.'\n\n"
+                "### 💬 Discussion Summary\n"
+                "Analyze the chat messages and write a coherent summary of what was discussed. "
+                "Group by topic if possible. Include who said what for key points.\n\n"
+                "### 🎯 Key Decisions\n"
+                "Extract any decisions that were made (or say 'No explicit decisions captured in chat')\n\n"
+                "### ✅ Action Items\n"
+                "Extract any action items, tasks, or follow-ups mentioned. Format as:\n"
+                "- [ ] **[Person]**: [action item]\n\n"
+                "### 📊 Meeting Health\n"
+                "Give a brief assessment: was the meeting productive based on the chat activity? "
+                "Mention message count, participation level, etc.\n\n"
+                "If there are no chat messages, mention that the discussion likely happened via voice/video "
+                "and only metadata is available. Still provide what analysis you can from attendees and agenda.\n"
+                "Be professional, factual, and insightful. Only report what the data supports."
+            )
+        elif tool_name == "nudge_colleague":
+            system = (
+                "You are Tagent. The user asked to nudge a colleague. "
+                "If the action succeeded, reply with a short, celebratory message confirming the DM was sent. "
+                "If it failed, explain the error clearly."
+            )
+        elif tool_name == "negotiate_meeting":
+            system = (
+                "You are Tagent. The user asked to find a gap and negotiate a meeting with a colleague. "
+                "If it succeeded, summarize the proposed time that was found and sent to the colleague. "
+                "If it failed, explain why."
+            )
+        elif tool_name == "chat_to_jira":
+            system = (
+                "You are Tagent. The user wants to convert a recent chat with a colleague into a Jira Ticket.\n"
+                "You are given the 'chat_context' which contains recent messages.\n"
+                "Analyze the chat and generate a PERFECT, ready-to-use Jira ticket format using Markdown.\n\n"
+                "## 🎫 Suggested Jira Ticket\n"
+                "**Title**: [A concise, professional title based on the chat]\n"
+                "**Issue Type**: [Task/Story/Bug]\n\n"
+                "**Description**:\n"
+                "[A well-written professional description synthesizing what was discussed]\n\n"
+                "**Acceptance Criteria**:\n"
+                "- [ ] [Criteria 1]\n"
+                "- [ ] [Criteria 2]\n\n"
+                "**Priority**: [Infer from chat]\n\n"
+                "Add a small note at the end saying: *'If this looks good, tell me to create this ticket!'*\n"
+                "Note: Do not actually create the ticket, just propose the format."
+            )
+        elif tool_name == "smart_ooo_handoff":
+            system = (
+                "You are Tagent. The user asked to hand off their active Jira tickets to a colleague for OOO coverage.\n"
+                "If it succeeded, list out the tickets that were handed off and confirm the DM was sent.\n"
+                "If it failed, explain the error clearly."
+            )
+        elif tool_name == "analyze_onedrive_transcript":
+            system = (
+                "You are Tagent, an enterprise AI assistant. "
+                "You have been provided with the raw transcript text of a meeting downloaded directly from OneDrive.\n\n"
+                "Generate a comprehensive, well-structured meeting analysis using this format:\n\n"
+                "## 🧠 Transcript Analysis: [Meeting Name]\n"
+                "**Source**: [File Name]\n\n"
+                "### 💬 Detailed Summary\n"
+                "Write a highly detailed summary of the meeting based purely on the spoken words in the transcript. "
+                "Group by topic discussed.\n\n"
+                "### 🎯 Key Decisions\n"
+                "Extract any explicitly stated decisions.\n\n"
+                "### ✅ Action Items\n"
+                "Extract any action items, tasks, or follow-ups mentioned. Format as:\n"
+                "- [ ] **[Person]**: [action item]\n\n"
+                "If the transcript is empty or could not be found, explain the error cleanly."
             )
         else:
             system = (

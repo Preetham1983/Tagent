@@ -47,6 +47,18 @@ export function ChatView({ controller, model }: Props) {
   const messages = model.getMessages();
   const loading = model.isLoading();
 
+  /** Extract the @mention query from the input, if any. Returns null if no active @mention. */
+  const extractMentionQuery = (text: string): string | null => {
+    const atIdx = text.lastIndexOf("@");
+    if (atIdx === -1) return null;
+    const after = text.slice(atIdx + 1);
+    // If the text after @ contains a dot + domain, it's a typed email — don't search
+    if (/\S+\.\S+/.test(after)) return null;
+    // Must be at start of input or preceded by a space
+    if (atIdx > 0 && text[atIdx - 1] !== " ") return null;
+    return after.trimEnd();
+  };
+
   const handleInputChange = (value: string) => {
     setInput(value);
 
@@ -58,21 +70,50 @@ export function ChatView({ controller, model }: Props) {
         selectedTool.id === "send_direct_message" ||
         selectedTool.id === "schedule_meeting";
       if (isRecipientTool) {
-        const hasEmail = value.includes("@");
-        const hasDash = value.includes(" - ");
-        if (!hasEmail && !hasDash && value.trim().length >= 2) {
+        // Check for @mention first
+        const mentionQuery = extractMentionQuery(value);
+        if (mentionQuery !== null && mentionQuery.length >= 2) {
           if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
           searchDebounceRef.current = setTimeout(() => {
-            void controller.searchUsers(value.trim()).then(setUserSuggestions);
+            void controller.searchUsers(mentionQuery).then(setUserSuggestions);
           }, 350);
         } else {
-          if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
-          setUserSuggestions([]);
+          // Fallback: plain name typing (no @, no email, no dash separator yet)
+          const hasFullEmail = /\S+@\S+\.\S+/.test(value);
+          const hasDash = value.includes(" - ");
+          if (!hasFullEmail && !hasDash && value.trim().length >= 2 && !value.includes("@")) {
+            if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+            searchDebounceRef.current = setTimeout(() => {
+              void controller.searchUsers(value.trim()).then(setUserSuggestions);
+            }, 350);
+          } else {
+            if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+            setUserSuggestions([]);
+          }
         }
       }
       return;
     }
 
+    // ── @mention autocomplete in free-text mode ──────────────────────
+    const mentionQuery = extractMentionQuery(value);
+    if (mentionQuery !== null && mentionQuery.length >= 2) {
+      setShowPalette(false);
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+      searchDebounceRef.current = setTimeout(() => {
+        void controller.searchUsers(mentionQuery).then(setUserSuggestions);
+      }, 350);
+      return;
+    } else if (mentionQuery !== null) {
+      // Typing @ but less than 2 chars — clear suggestions, don't show palette
+      if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
+      setUserSuggestions([]);
+      return;
+    } else {
+      setUserSuggestions([]);
+    }
+
+    // ── # command palette ────────────────────────────────────────────
     const hashIdx = value.lastIndexOf("#");
     if (hashIdx !== -1) {
       const after = value.slice(hashIdx + 1);
@@ -86,7 +127,23 @@ export function ChatView({ controller, model }: Props) {
   };
 
   const handleSuggestionSelect = (suggestion: UserSuggestion) => {
-    setInput(`${suggestion.email} - `);
+    if (selectedTool) {
+      // In tool mode: replace the whole input with "email - " so user can type the message
+      const mentionQuery = extractMentionQuery(input);
+      if (mentionQuery !== null) {
+        // Replace @query with the email
+        const atIdx = input.lastIndexOf("@");
+        const before = input.slice(0, atIdx);
+        setInput(`${before}${suggestion.email} - `);
+      } else {
+        setInput(`${suggestion.email} - `);
+      }
+    } else {
+      // In free-text mode: replace @query with the display name + email
+      const atIdx = input.lastIndexOf("@");
+      const before = input.slice(0, atIdx);
+      setInput(`${before}${suggestion.name} (${suggestion.email}) `);
+    }
     setUserSuggestions([]);
     setTimeout(() => textareaRef.current?.focus(), 0);
   };
@@ -138,9 +195,13 @@ export function ChatView({ controller, model }: Props) {
 
   const canSend = !loading && (selectedTool !== null || input.trim().length > 0);
 
+  const isRecipientPlaceholder =
+    selectedTool?.id === "send_direct_message" || selectedTool?.id === "schedule_meeting";
   const placeholder = selectedTool
-    ? selectedTool.placeholderQuery || "Press Enter to run, or type a filter…"
-    : "Ask Tagent anything, or type # to pick a tool directly…";
+    ? isRecipientPlaceholder
+      ? "Type @name to find a colleague, or paste email - message"
+      : selectedTool.placeholderQuery || "Press Enter to run, or type a filter…"
+    : "Ask Tagent anything · # pick a tool · @ find a colleague";
 
   return (
     <div className="chat-layout">
@@ -244,6 +305,9 @@ export function ChatView({ controller, model }: Props) {
 
         {userSuggestions.length > 0 && (
           <div className="user-suggestions">
+            <div className="user-suggestions-header">
+              <span className="user-suggestions-hint">👥 Teams colleagues</span>
+            </div>
             {userSuggestions.map((u) => (
               <div
                 key={u.email}
@@ -252,10 +316,15 @@ export function ChatView({ controller, model }: Props) {
                 role="option"
                 tabIndex={-1}
               >
-                <span className="user-suggestion-avatar">👤</span>
+                <span className="user-suggestion-avatar">{u.name?.[0] ?? "?"}</span>
                 <div className="user-suggestion-body">
                   <div className="user-suggestion-name">{u.name}</div>
-                  <div className="user-suggestion-email">{u.email}</div>
+                  <div className="user-suggestion-email">
+                    {u.email}
+                    {u.job_title && u.job_title !== "N/A" && (
+                      <span className="user-suggestion-title"> · {u.job_title}</span>
+                    )}
+                  </div>
                 </div>
               </div>
             ))}

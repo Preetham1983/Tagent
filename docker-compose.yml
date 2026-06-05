@@ -11,6 +11,10 @@ services:
       - MCP_EXTERNAL_CWD=/app/mcp_tools
       - MCP_EXTERNAL_COMMAND=python
       - MCP_EXTERNAL_ARGS=["main.py"]
+      # DACL server runs on the HOST machine — reach it via host.docker.internal
+      - DACL_MCP_URL=http://host.docker.internal:8080/sse
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ${HOME:-~}/.tagent:/root/.tagent
       - ${HOME:-~}/.config/google-calendar-mcp:/root/.config/google-calendar-mcp

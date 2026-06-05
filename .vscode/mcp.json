@@ -1,0 +1,12 @@
+{
+	"servers": {
+		"my-mcp-server-22f1c4dd": {
+			"url": "http://127.0.0.1:8080/sse",
+			"type": "http",
+			"headers": {
+				"X-API-Key": "dacl-HdpoHmpqTYWifp_ErfEgvlvVIeQ7nN7xu3yasTR9ZYc"
+			}
+		}
+	},
+	"inputs": []
+}

@@ -41,7 +41,7 @@ async def device_code_login():
         print("ERROR: MS_TENANT_ID and MS_CLIENT_ID must be set in .env")
         sys.exit(1)
 
-    scopes = "User.Read User.ReadBasic.All Chat.ReadWrite Calendars.ReadWrite OnlineMeetings.Read offline_access"
+    scopes = "User.Read User.ReadBasic.All Chat.ReadWrite Calendars.ReadWrite OnlineMeetings.Read Files.ReadWrite offline_access"
     login_base = f"https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0"
 
     async with httpx.AsyncClient(timeout=30) as http:

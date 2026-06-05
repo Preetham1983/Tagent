@@ -12,5 +12,6 @@ class Intent(Enum):
     QUERY_CALENDAR = "query_calendar"
     SEND_MESSAGE = "send_message"
     GET_USER_INFO = "get_user_info"
+    VALIDATE_RULE = "validate_rule"
     GENERAL_CHAT = "general_chat"
     UNKNOWN = "unknown"

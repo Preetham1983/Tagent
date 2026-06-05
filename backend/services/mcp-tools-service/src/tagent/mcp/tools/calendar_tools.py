@@ -74,10 +74,22 @@ def register_calendar_tools(server: Server) -> None:
         try:
             # Parse start time and calculate end time
             from datetime import timedelta
+            import os, json
             if not start_time or not start_time.strip():
                 return {"status": "error", "message": "start_time is required. Provide an ISO-8601 datetime (e.g. 2026-05-29T13:00:00)."}
             start_dt = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
             end_dt = start_dt + timedelta(minutes=duration_minutes)
+
+            # Resolve Timezone
+            tz_name = "India Standard Time"
+            _prefs_file = os.path.join(os.path.expanduser("~"), ".tagent", "user_preferences.json")
+            try:
+                with open(_prefs_file, "r", encoding="utf-8") as _pf:
+                    _prefs = json.load(_pf)
+                if _prefs.get("calendar_timezone"):
+                    tz_name = _prefs["calendar_timezone"]
+            except (FileNotFoundError, Exception):
+                pass
 
             attendees = [
                 {
@@ -88,8 +100,8 @@ def register_calendar_tools(server: Server) -> None:
             ]
             payload = {
                 "subject": title,
-                "start": {"dateTime": start_dt.isoformat(), "timeZone": "UTC"},
-                "end": {"dateTime": end_dt.isoformat(), "timeZone": "UTC"},
+                "start": {"dateTime": start_dt.isoformat(), "timeZone": tz_name},
+                "end": {"dateTime": end_dt.isoformat(), "timeZone": tz_name},
                 "attendees": attendees,
                 "isOnlineMeeting": True,
                 "onlineMeetingProvider": "teamsForBusiness",
@@ -381,3 +393,166 @@ def register_calendar_tools(server: Server) -> None:
                 }
         except Exception as exc:
             return {"status": "error", "message": str(exc)[:300]}
+
+    @server.tool()
+    async def analyze_meeting(meeting_subject: str = "", days_back: int = 7) -> dict:
+        """Analyze a Teams meeting by reading its chat messages, attendees, and details.
+        Works WITHOUT transcript permissions — uses the meeting chat thread instead.
+        Provide a meeting subject keyword and optionally how many days back to search."""
+        token = await _get_graph_token()
+        if not token:
+            return {"status": "not_connected", "message": "No valid user session. Please sign in first."}
+
+        try:
+            import re as _re
+
+            async with httpx.AsyncClient(timeout=30) as http:
+                # 1. Find the meeting from the calendar
+                now = datetime.now(timezone.utc)
+                start = (now - timedelta(days=days_back)).strftime("%Y-%m-%dT%H:%M:%SZ")
+                end = now.strftime("%Y-%m-%dT%H:%M:%SZ")
+
+                events_r = await http.get(
+                    "https://graph.microsoft.com/v1.0/me/calendarView",
+                    headers={"Authorization": f"Bearer {token}"},
+                    params={
+                        "startDateTime": start,
+                        "endDateTime": end,
+                        "$select": "id,subject,start,end,isOnlineMeeting,onlineMeeting,attendees,body,organizer",
+                        "$top": "30",
+                    },
+                )
+                if events_r.status_code != 200:
+                    return {"status": "error", "message": f"Could not fetch calendar: {events_r.text[:200]}"}
+
+                events = events_r.json().get("value", [])
+                online_events = [e for e in events if e.get("isOnlineMeeting")]
+                if not online_events:
+                    return {"status": "ok", "message": "No Teams online meetings found in the search window."}
+
+                # Filter by subject if provided
+                if meeting_subject:
+                    matched = [
+                        e for e in online_events
+                        if meeting_subject.lower() in (e.get("subject") or "").lower()
+                    ]
+                    if not matched:
+                        subjects = [e.get("subject") for e in online_events]
+                        return {
+                            "status": "ok",
+                            "message": f"No meeting matched '{meeting_subject}'. Recent online meetings: {subjects}",
+                        }
+                    online_events = matched
+
+                # Use the most recent matching meeting
+                target = online_events[-1]
+                meeting_info = {
+                    "subject": target.get("subject", "Untitled Meeting"),
+                    "start": (target.get("start") or {}).get("dateTime", ""),
+                    "end": (target.get("end") or {}).get("dateTime", ""),
+                    "organizer": (target.get("organizer") or {}).get("emailAddress", {}).get("name", "Unknown"),
+                    "organizer_email": (target.get("organizer") or {}).get("emailAddress", {}).get("address", ""),
+                }
+
+                # Extract attendees
+                attendees = []
+                for a in (target.get("attendees") or []):
+                    email_obj = a.get("emailAddress", {})
+                    attendees.append({
+                        "name": email_obj.get("name", ""),
+                        "email": email_obj.get("address", ""),
+                        "response": (a.get("status") or {}).get("response", "none"),
+                    })
+                meeting_info["attendees"] = attendees
+                meeting_info["total_attendees"] = len(attendees)
+
+                # Extract agenda/body from the event (if organizer added notes)
+                body_content = (target.get("body") or {}).get("content", "")
+                body_text = _re.sub(r"<[^>]+>", "", body_content).strip()[:2000]
+                if body_text:
+                    meeting_info["agenda"] = body_text
+
+                # 2. Try to get the meeting chat thread
+                join_url = (target.get("onlineMeeting") or {}).get("joinUrl", "")
+                chat_messages = []
+
+                if join_url:
+                    # Look up the onlineMeeting object to get the chatInfo
+                    om_r = await http.get(
+                        "https://graph.microsoft.com/v1.0/me/onlineMeetings",
+                        headers={"Authorization": f"Bearer {token}"},
+                        params={"$filter": f"joinWebUrl eq '{join_url}'"},
+                    )
+                    if om_r.status_code == 200 and om_r.json().get("value"):
+                        om = om_r.json()["value"][0]
+                        chat_id = (om.get("chatInfo") or {}).get("threadId", "")
+
+                        if chat_id:
+                            # 3. Read all messages from the meeting chat
+                            msgs_r = await http.get(
+                                f"https://graph.microsoft.com/v1.0/me/chats/{chat_id}/messages",
+                                headers={"Authorization": f"Bearer {token}"},
+                                params={"$top": "50", "$orderby": "createdDateTime asc"},
+                            )
+                            if msgs_r.status_code == 200:
+                                raw_msgs = msgs_r.json().get("value", [])
+                                for m in raw_msgs:
+                                    body_obj = m.get("body") or {}
+                                    content = body_obj.get("content", "")
+                                    # Strip HTML tags for plain text
+                                    plain = _re.sub(r"<[^>]+>", "", content).strip()
+                                    if not plain:
+                                        continue
+
+                                    sender = "Unknown"
+                                    from_obj = m.get("from") or {}
+                                    user_obj = from_obj.get("user") or {}
+                                    sender = user_obj.get("displayName") or from_obj.get("application", {}).get("displayName", "System")
+
+                                    msg_type = m.get("messageType", "message")
+                                    created = m.get("createdDateTime", "")
+
+                                    chat_messages.append({
+                                        "sender": sender,
+                                        "text": plain[:500],
+                                        "time": created,
+                                        "type": msg_type,
+                                    })
+
+                meeting_info["chat_messages"] = chat_messages
+                meeting_info["total_messages"] = len(chat_messages)
+
+                # 4. Try to get attendance report (may require admin consent)
+                attendance_info = []
+                if join_url and om_r.status_code == 200 and om_r.json().get("value"):
+                    om_id = om_r.json()["value"][0]["id"]
+                    att_r = await http.get(
+                        f"https://graph.microsoft.com/v1.0/me/onlineMeetings/{om_id}/attendanceReports",
+                        headers={"Authorization": f"Bearer {token}"},
+                    )
+                    if att_r.status_code == 200:
+                        reports = att_r.json().get("value", [])
+                        if reports:
+                            report_id = reports[-1]["id"]
+                            rec_r = await http.get(
+                                f"https://graph.microsoft.com/v1.0/me/onlineMeetings/{om_id}/attendanceReports/{report_id}/attendanceRecords",
+                                headers={"Authorization": f"Bearer {token}"},
+                            )
+                            if rec_r.status_code == 200:
+                                for rec in rec_r.json().get("value", []):
+                                    attendance_info.append({
+                                        "name": (rec.get("identity") or {}).get("displayName", "Unknown"),
+                                        "duration_minutes": round((rec.get("totalAttendanceInSeconds") or 0) / 60),
+                                        "role": rec.get("role", ""),
+                                    })
+
+                if attendance_info:
+                    meeting_info["attendance"] = attendance_info
+
+                return {
+                    "status": "ok",
+                    **meeting_info,
+                }
+        except Exception as exc:
+            return {"status": "error", "message": str(exc)[:300]}
+

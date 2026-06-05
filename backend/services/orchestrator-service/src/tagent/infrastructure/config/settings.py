@@ -25,6 +25,10 @@ class Settings(BaseSettings):
     mcp_external_summary_tool: str = ""
     mcp_external_timeout_seconds: int = 20
 
+    # DACL external MCP server (SSE/HTTP transport at localhost:8080)
+    dacl_mcp_url: str = "http://localhost:8080/sse"
+    dacl_mcp_api_key: str = ""
+
     # Azure OpenAI
     azure_openai_endpoint: str = ""
     azure_openai_api_key: str = ""
