@@ -20,12 +20,15 @@ from tagent.agents.graph import build_agent_graph
 
 app = FastAPI(title="tagent-orchestrator-service")
 
+_raw_origins = os.getenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173")
+_allowed_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 # Build the graph once at startup
