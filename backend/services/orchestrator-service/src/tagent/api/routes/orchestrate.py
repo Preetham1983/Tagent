@@ -19,9 +19,12 @@ async def orchestrate(req: OrchestrateRequest) -> dict:
         "plan": [],
         "current_step": 0,
         "tool_results": [],
+        "dacl_result": None,
         "approval": None,
         "user_id": req.user_id,
         "thread_id": req.thread_id,
+        "user_role": req.user_role,
+        "user_tier": req.user_tier,
         "memory": [],
     }
     result = await graph.ainvoke(
@@ -29,11 +32,46 @@ async def orchestrate(req: OrchestrateRequest) -> dict:
     )
 
     tool_results = result.get("tool_results", [])
-    response_text = (
-        tool_results[-1]["output"] if tool_results else "I'm here to help — ask me anything."
-    )
+    dacl_result = result.get("dacl_result")
+    
+    # Check if BRN blocked the request
+    if dacl_result and dacl_result.get("allowed") == "no":
+        policy_name = dacl_result.get("policy_name", "Unknown Policy")
+        fallback = dacl_result.get("fallback_action", "escalate_to_human")
+        response_text = (
+            f"🚫 **Action Blocked by BRN Policy**\n\n"
+            f"Your request was blocked by the business rules network.\n\n"
+            f"**Policy:** {policy_name}\n"
+            f"**Action:** {fallback.replace('_', ' ').title()}\n\n"
+            f"Please refine your request or contact an administrator for assistance."
+        )
+    else:
+        response_text = (
+            tool_results[-1]["output"] if tool_results else "I'm here to help — ask me anything."
+        )
 
     approval = result.get("approval")
+    step_dacl_results = result.get("step_dacl_results")
+    
+    # Extract BRN validation status
+    brn_validation = {
+        "enabled": bool(dacl_result and dacl_result.get("dacl_available")),
+        "intent_check": {
+            "passed": dacl_result.get("allowed") == "yes" if dacl_result else None,
+            "policy_name": dacl_result.get("policy_name") if dacl_result else None,
+            "allowed": dacl_result.get("allowed") if dacl_result else None,
+            "auto_execute": dacl_result.get("auto_execute") if dacl_result else None,
+        } if dacl_result else None,
+        "step_checks": [
+            {
+                "step": sr.get("step"),
+                "passed": sr.get("allowed") == "yes",
+                "allowed": sr.get("allowed"),
+            }
+            for sr in (step_dacl_results or [])
+        ] if step_dacl_results else [],
+    }
+    
     return {
         "response": response_text,
         "thread_id": req.thread_id,
@@ -45,6 +83,7 @@ async def orchestrate(req: OrchestrateRequest) -> dict:
             "level": approval.level.value if approval else None,
             "status": approval.status.value if approval else None,
         },
+        "brn_validation": brn_validation,
     }
 
 

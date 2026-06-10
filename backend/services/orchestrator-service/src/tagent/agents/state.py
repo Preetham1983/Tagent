@@ -28,12 +28,26 @@ class AgentState(TypedDict):
     # Results collected from tool executions
     tool_results: list[dict[str, Any]]
 
+    # DACL gate result — set by dacl_guard before planning
+    # Keys: allowed, auto_execute, requires_approval, fallback_action, dacl_available, raw
+    dacl_result: dict[str, Any] | None
+
+    # Step-level DACL results — set by step_dacl_guard after planning
+    # List of per-step dicts: {step, allowed, auto_execute, requires_approval, dacl_available, raw}
+    step_dacl_results: list[dict[str, Any]] | None
+
     # Human-in-the-loop approval state
     approval: ApprovalRequest | None
 
     # User/thread context
     user_id: str
     thread_id: str
+
+    # User identity for DACL rule matching (passed in from the API layer)
+    # user_role: admin | authenticated_user | agent | colleague
+    # user_tier: free | basic | professional | enterprise
+    user_role: str
+    user_tier: str
 
     # Persistent memory snippets loaded for this conversation
     memory: list[str]

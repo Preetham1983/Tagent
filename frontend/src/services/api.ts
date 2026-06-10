@@ -1,4 +1,12 @@
-import type { OrchestrateResponse, JiraSettings, CalendarSettings, GoogleCalendarSettings, IntegrationStatus, TeamsDeviceCodeResponse, TeamsAuthPollResponse } from "../types";
+import type {
+  OrchestrateResponse,
+  JiraSettings,
+  CalendarSettings,
+  GoogleCalendarSettings,
+  IntegrationStatus,
+  TeamsDeviceCodeResponse,
+  TeamsAuthPollResponse,
+} from "../types";
 
 type OrchestratePayload = {
   user_id: string;
@@ -6,7 +14,6 @@ type OrchestratePayload = {
   message: string;
 };
 
-/** Extract the FastAPI detail string from a non-OK response, falling back to a default message. */
 async function extractError(response: Response, fallback: string): Promise<string> {
   try {
     const body = await response.json();
@@ -27,6 +34,20 @@ export class OrchestratorApi {
     });
     if (!response.ok) throw new Error(await extractError(response, "Orchestrator request failed"));
     return response.json() as Promise<OrchestrateResponse>;
+  }
+
+  async approve(payload: {
+    thread_id: string;
+    approved: boolean;
+    user_id: string;
+  }): Promise<{ status: string; response?: string }> {
+    const response = await fetch(`${this.baseUrl}/approve`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) throw new Error(await extractError(response, "Approval request failed"));
+    return response.json();
   }
 
   async saveJiraSettings(settings: JiraSettings): Promise<{ status: string }> {
@@ -84,7 +105,9 @@ export class OrchestratorApi {
     return response.json() as Promise<TeamsAuthPollResponse>;
   }
 
-  async callTool(req: import("../types").DirectToolRequest): Promise<import("../types").DirectToolResponse> {
+  async callTool(
+    req: import("../types").DirectToolRequest,
+  ): Promise<import("../types").DirectToolResponse> {
     const response = await fetch(`${this.baseUrl}/tool/call`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },

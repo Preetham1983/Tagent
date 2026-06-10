@@ -9,6 +9,10 @@ class OrchestrateRequest(BaseModel):
     user_id: str
     thread_id: str
     message: str = Field(min_length=1)
+    # Optional identity hints — used by DACL guard to match the right rule
+    # Defaults keep backward compatibility with existing callers
+    user_role: str = "authenticated_user"   # admin | authenticated_user | agent | colleague
+    user_tier: str = "professional"          # free | basic | professional | enterprise
 
 
 class ApproveRequest(BaseModel):

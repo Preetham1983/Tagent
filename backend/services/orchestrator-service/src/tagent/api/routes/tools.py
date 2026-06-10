@@ -23,22 +23,165 @@ _GCAL_TOOLS = {
 }
 _DACL_TOOLS = {"validate_business_rule", "list_available_policies"}
 
+# Map tool names to intents for BRN validation
+_TOOL_TO_INTENT = {
+    "list_jira_issues": "query_tasks",
+    "search_jira_issues": "query_tasks",
+    "search_closed_issues": "query_tasks",
+    "create_jira_issue": "create_task",
+    "list_calendar_events": "query_calendar",
+    "schedule_meeting": "schedule_meeting",
+    "send_direct_message": "send_message",
+    "get_user_info": "get_user_info",
+    "search_user": "get_user_info",
+    "list_google_calendar_events": "query_calendar",
+    "create_google_calendar_event": "schedule_meeting",
+    "search_google_calendar_events": "query_calendar",
+    "validate_business_rule": "validate_rule",
+    "list_available_policies": "validate_rule",
+}
+
+
+async def _validate_tool_with_brn(
+    tool_name: str, 
+    user_role: str = "authenticated_user",
+    user_tier: str = "professional"
+) -> dict:
+    """Validate a tool call against BRN policy engine."""
+    from tagent.agents.nodes.executor import _call_dacl_mcp_tool
+    from tagent.domain.value_objects.intent import Intent
+    
+    # Map tool to intent
+    intent_str = _TOOL_TO_INTENT.get(tool_name, "general_chat")
+    
+    # Build DACL query
+    action_map = {
+        "query_tasks": "search",
+        "create_task": "create",
+        "query_calendar": "read",
+        "schedule_meeting": "schedule",
+        "send_message": "notify",
+        "get_user_info": "read",
+        "validate_rule": "validate",
+    }
+    
+    integration_map = {
+        "query_tasks": "jira",
+        "create_task": "jira",
+        "query_calendar": "ms365_calendar",
+        "schedule_meeting": "ms365_calendar",
+        "send_message": "teams",
+        "get_user_info": "ms_graph",
+        "validate_rule": "dacl_engine",
+    }
+    
+    action_type = action_map.get(intent_str, "read")
+    integration = integration_map.get(intent_str, "memory")
+    
+    query = (
+        f"user_role={user_role} "
+        f"integration={integration} "
+        f"action_type={action_type} "
+        f"query_intent={intent_str} "
+        f"mcp_tool={tool_name} "
+        f"confidence=very_high "
+        f"approval_level=auto "
+        f"user_tier={user_tier} "
+        f"context_turns=turns_1_3 "
+        f"time_context=business_hours"
+    )
+    
+    raw = await _call_dacl_mcp_tool(
+        "validate_business_rule",
+        {"domain": "agents", "query": query},
+    )
+    
+    if raw is None or raw.get("status") == "error":
+        # DACL unavailable — fail-open
+        return {
+            "enabled": False,
+            "intent_check": {
+                "passed": True,
+                "policy_name": f"TAGENT_POLICY_{intent_str.upper()}_UNAVAILABLE",
+                "allowed": "yes",
+                "auto_execute": "yes",
+            }
+        }
+    
+    # Parse DACL response
+    result: dict = {}
+    output = raw.get("output", "")
+    
+    if isinstance(output, dict):
+        result = output
+    elif isinstance(output, str) and "|" in output:
+        parts = output.split("|")
+        if len(parts) >= 4:
+            for kv in parts[3].split(","):
+                if "=" in kv:
+                    k, v = kv.split("=", 1)
+                    result[k.strip()] = v.strip()
+    elif isinstance(raw, dict):
+        result = {k: v for k, v in raw.items() if k != "status"}
+    
+    policy_name = result.get("policy_name", f"TAGENT_POLICY_{intent_str.upper()}")
+    allowed = result.get("allowed", "yes")
+    
+    return {
+        "enabled": True,
+        "intent_check": {
+            "passed": allowed == "yes",
+            "policy_name": policy_name,
+            "allowed": allowed,
+            "auto_execute": result.get("auto_execute", "yes"),
+        }
+    }
+
 
 @router.post("/tool/call")
 async def call_tool_direct(req: DirectToolRequest) -> dict:
-    """Call an MCP tool directly by name."""
+    """Call an MCP tool directly by name with BRN validation."""
     from tagent.infrastructure.adapters.llm_adapter import get_default_adapter
     from tagent.infrastructure.config.settings import Settings
 
     s = Settings()
+    
+    # Validate tool call with BRN
+    brn_validation = await _validate_tool_with_brn(
+        req.tool_name,
+        user_role="authenticated_user",  # TODO: Pass from request
+        user_tier="professional",        # TODO: Pass from request
+    )
+    
+    # Block if BRN says no
+    if not brn_validation["intent_check"]["passed"]:
+        policy_name = brn_validation["intent_check"]["policy_name"]
+        return {
+            "status": "blocked",
+            "tool": req.tool_name,
+            "response": (
+                f"🚫 **Action Blocked by BRN Policy**\n\n"
+                f"Your request was blocked by the business rules network.\n\n"
+                f"**Policy:** {policy_name}\n"
+                f"**Tool:** {req.tool_name}\n\n"
+                f"Please refine your request or contact an administrator for assistance."
+            ),
+            "brn_validation": brn_validation,
+        }
 
     if req.tool_name in _GCAL_TOOLS:
-        return await _handle_gcal(req, s)
+        result = await _handle_gcal(req, s)
+        result["brn_validation"] = brn_validation
+        return result
 
     if req.tool_name in _DACL_TOOLS:
-        return await _handle_dacl(req, s)
+        result = await _handle_dacl(req, s)
+        result["brn_validation"] = brn_validation
+        return result
 
-    return await _handle_mcp(req, s)
+    result = await _handle_mcp(req, s)
+    result["brn_validation"] = brn_validation
+    return result
 
 
 # ── Google Calendar ────────────────────────────────────────────────────────────

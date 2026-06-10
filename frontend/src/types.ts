@@ -1,6 +1,25 @@
 export type ChatMessage = {
   role: "user" | "assistant";
   content: string;
+  timestamp: number;
+  toolName?: string;
+  stepResults?: Array<{ step: string; status: string; output: string }>;
+  brnValidation?: BrnValidation;
+};
+
+export type BrnValidation = {
+  enabled: boolean;
+  intent_check?: {
+    passed: boolean | null;
+    policy_name?: string | null;
+    allowed?: string | null;
+    auto_execute?: string | null;
+  } | null;
+  step_checks?: Array<{
+    step: string;
+    passed: boolean;
+    allowed: string;
+  }>;
 };
 
 export type OrchestrateResponse = {
@@ -12,6 +31,7 @@ export type OrchestrateResponse = {
     level: string | null;
     status: string | null;
   };
+  brn_validation?: BrnValidation;
 };
 
 export type IntegrationType =
@@ -97,6 +117,7 @@ export type DirectToolResponse = {
   tool: string;
   response: string;
   raw: unknown;
+  brn_validation?: BrnValidation;
 };
 
 export type CalendarSettings = {
@@ -157,4 +178,11 @@ export type IntegrationStatus = {
     configured: boolean;
     calendar_id: string;
   };
+};
+
+export type PendingApproval = {
+  required: boolean;
+  description: string | null;
+  level: string | null;
+  status: string | null;
 };

@@ -26,8 +26,18 @@ _APPROVAL_LEVELS: dict[Intent, ApprovalLevel] = {
 
 
 async def review(state: AgentState) -> dict:
-    """Review execution results and decide if human approval is needed."""
+    """Review execution results and decide if human approval is needed.
+
+    If DACL already cleared the action as auto_execute=yes, the reviewer
+    honours that and skips the human gate regardless of intent.
+    """
     intent = state.get("intent", Intent.UNKNOWN)
+
+    # If DACL says auto_execute=yes, skip human approval entirely
+    dacl = state.get("dacl_result") or {}
+    if dacl.get("auto_execute") == "yes":
+        return {"approval": None}
+
     level = _APPROVAL_LEVELS.get(intent, ApprovalLevel.CONFIRM)
 
     if level == ApprovalLevel.AUTO:

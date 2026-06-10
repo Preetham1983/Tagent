@@ -76,6 +76,7 @@ export function App() {
         activeIntegration={activeIntegration}
         onSelectIntegration={setActiveIntegration}
         integrationStatus={integrationStatus}
+        onNewConversation={() => controllerRef.current?.newConversation()}
       />
       <div className="main-content">
         <ChatView

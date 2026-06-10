@@ -12,10 +12,85 @@ import { CommandPalette } from "./CommandPalette";
 import { MarkdownMessage } from "./MarkdownMessage";
 
 const QUICK_PROMPTS = [
-  "Summarise today's standups",
-  "Schedule a team meeting",
   "What's on my calendar today?",
+  "Show open Jira issues",
+  "Generate my daily standup",
 ];
+
+const FEATURE_CARDS = [
+  {
+    icon: "🔷",
+    title: "Jira",
+    desc: "Issues, projects & tickets",
+    prompt: "List my open Jira issues",
+    color: "#0052CC",
+  },
+  {
+    icon: "🐙",
+    title: "GitHub",
+    desc: "Repos, PRs & issues",
+    prompt: "List open GitHub pull requests",
+    color: "#24292F",
+  },
+  {
+    icon: "💬",
+    title: "Teams",
+    desc: "Messages & meetings",
+    prompt: "Show my recent Teams chats",
+    color: "#5059C9",
+  },
+  {
+    icon: "📅",
+    title: "Calendar",
+    desc: "Schedule & availability",
+    prompt: "What's on my calendar today?",
+    color: "#0078D4",
+  },
+  {
+    icon: "📝",
+    title: "Notion",
+    desc: "Pages & databases",
+    prompt: "Search my Notion workspace",
+    color: "#374151",
+  },
+  {
+    icon: "⚡",
+    title: "Automation",
+    desc: "Smart cross-tool workflows",
+    prompt: "Generate my daily standup",
+    color: "#7C3AED",
+  },
+];
+
+const PROCESSING_LABELS = [
+  "Analyzing your request…",
+  "Calling tools…",
+  "Processing results…",
+  "Generating response…",
+];
+
+function formatTime(ts: number): string {
+  const now = Date.now();
+  const diff = now - ts;
+  if (diff < 60_000) return "just now";
+
+  const d = new Date(ts);
+  const h = d.getHours();
+  const m = d.getMinutes().toString().padStart(2, "0");
+  const ampm = h >= 12 ? "PM" : "AM";
+  const h12 = h % 12 || 12;
+  const timeStr = `${h12}:${m} ${ampm}`;
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const msgDay = new Date(ts);
+  msgDay.setHours(0, 0, 0, 0);
+  const dayDiff = Math.round((today.getTime() - msgDay.getTime()) / 86_400_000);
+
+  if (dayDiff === 0) return timeStr;
+  if (dayDiff === 1) return `Yesterday ${timeStr}`;
+  return `${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })} · ${timeStr}`;
+}
 
 type Props = {
   controller: ChatController;
@@ -29,12 +104,16 @@ export function ChatView({ controller, model }: Props) {
   const [showPalette, setShowPalette] = useState(false);
   const [paletteFilter, setPaletteFilter] = useState("");
   const [userSuggestions, setUserSuggestions] = useState<UserSuggestion[]>([]);
+  const [processingLabelIdx, setProcessingLabelIdx] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const processingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => model.subscribe(() => setTick((t) => t + 1)), [model]);
-  useEffect(() => { bottomRef.current?.scrollIntoView({ behavior: "smooth" }); });
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  });
 
   // Auto-resize textarea
   useEffect(() => {
@@ -44,17 +123,33 @@ export function ChatView({ controller, model }: Props) {
     el.style.height = Math.min(el.scrollHeight, 120) + "px";
   }, [input]);
 
+  // Cycle processing labels while loading
+  useEffect(() => {
+    if (model.isLoading()) {
+      processingTimerRef.current = setInterval(() => {
+        setProcessingLabelIdx((i) => (i + 1) % PROCESSING_LABELS.length);
+      }, 2200);
+    } else {
+      if (processingTimerRef.current) {
+        clearInterval(processingTimerRef.current);
+        processingTimerRef.current = null;
+      }
+      setProcessingLabelIdx(0);
+    }
+    return () => {
+      if (processingTimerRef.current) clearInterval(processingTimerRef.current);
+    };
+  }, [model.isLoading()]);
+
   const messages = model.getMessages();
   const loading = model.isLoading();
+  const pendingApproval = model.getPendingApproval();
 
-  /** Extract the @mention query from the input, if any. Returns null if no active @mention. */
   const extractMentionQuery = (text: string): string | null => {
     const atIdx = text.lastIndexOf("@");
     if (atIdx === -1) return null;
     const after = text.slice(atIdx + 1);
-    // If the text after @ contains a dot + domain, it's a typed email — don't search
     if (/\S+\.\S+/.test(after)) return null;
-    // Must be at start of input or preceded by a space
     if (atIdx > 0 && text[atIdx - 1] !== " ") return null;
     return after.trimEnd();
   };
@@ -65,12 +160,10 @@ export function ChatView({ controller, model }: Props) {
     if (selectedTool) {
       setShowPalette(false);
 
-      // Colleague autocomplete for DM and meeting tools
       const isRecipientTool =
         selectedTool.id === "send_direct_message" ||
         selectedTool.id === "schedule_meeting";
       if (isRecipientTool) {
-        // Check for @mention first
         const mentionQuery = extractMentionQuery(value);
         if (mentionQuery !== null && mentionQuery.length >= 2) {
           if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
@@ -78,7 +171,6 @@ export function ChatView({ controller, model }: Props) {
             void controller.searchUsers(mentionQuery).then(setUserSuggestions);
           }, 350);
         } else {
-          // Fallback: plain name typing (no @, no email, no dash separator yet)
           const hasFullEmail = /\S+@\S+\.\S+/.test(value);
           const hasDash = value.includes(" - ");
           if (!hasFullEmail && !hasDash && value.trim().length >= 2 && !value.includes("@")) {
@@ -95,7 +187,6 @@ export function ChatView({ controller, model }: Props) {
       return;
     }
 
-    // ── @mention autocomplete in free-text mode ──────────────────────
     const mentionQuery = extractMentionQuery(value);
     if (mentionQuery !== null && mentionQuery.length >= 2) {
       setShowPalette(false);
@@ -105,7 +196,6 @@ export function ChatView({ controller, model }: Props) {
       }, 350);
       return;
     } else if (mentionQuery !== null) {
-      // Typing @ but less than 2 chars — clear suggestions, don't show palette
       if (searchDebounceRef.current) clearTimeout(searchDebounceRef.current);
       setUserSuggestions([]);
       return;
@@ -113,7 +203,6 @@ export function ChatView({ controller, model }: Props) {
       setUserSuggestions([]);
     }
 
-    // ── # command palette ────────────────────────────────────────────
     const hashIdx = value.lastIndexOf("#");
     if (hashIdx !== -1) {
       const after = value.slice(hashIdx + 1);
@@ -128,10 +217,8 @@ export function ChatView({ controller, model }: Props) {
 
   const handleSuggestionSelect = (suggestion: UserSuggestion) => {
     if (selectedTool) {
-      // In tool mode: replace the whole input with "email - " so user can type the message
       const mentionQuery = extractMentionQuery(input);
       if (mentionQuery !== null) {
-        // Replace @query with the email
         const atIdx = input.lastIndexOf("@");
         const before = input.slice(0, atIdx);
         setInput(`${before}${suggestion.email} - `);
@@ -139,7 +226,6 @@ export function ChatView({ controller, model }: Props) {
         setInput(`${suggestion.email} - `);
       }
     } else {
-      // In free-text mode: replace @query with the display name + email
       const atIdx = input.lastIndexOf("@");
       const before = input.slice(0, atIdx);
       setInput(`${before}${suggestion.name} (${suggestion.email}) `);
@@ -207,16 +293,16 @@ export function ChatView({ controller, model }: Props) {
     <div className="chat-layout">
       {/* Top bar */}
       <div className="chat-topbar">
-        <div className="chat-topbar-icon">⚡</div>
+        <div className="chat-topbar-icon">T</div>
         <div>
           <div className="chat-topbar-title">Tagent</div>
-          <div className="chat-topbar-subtitle">Enterprise AI Assistant</div>
+          <div className="chat-topbar-subtitle">Enterprise AI Orchestrator</div>
         </div>
         <div className="chat-topbar-actions">
           <button
             className="btn-icon"
             title="New conversation"
-            onClick={() => window.location.reload()}
+            onClick={() => controller.newConversation()}
           >
             ↺
           </button>
@@ -227,13 +313,29 @@ export function ChatView({ controller, model }: Props) {
       <div className="chat-messages">
         {messages.length === 0 ? (
           <div className="welcome-screen">
-            <div className="welcome-icon">⚡</div>
+            <div className="welcome-logo">T</div>
             <div className="welcome-title">How can I help you today?</div>
             <div className="welcome-subtitle">
-              Ask anything, or type{" "}
-              <code className="inline-code">#</code> to pick a tool and
-              call Jira, Calendar, or Teams directly.
+              Ask anything in natural language, or pick a tool to call Jira,
+              Teams, GitHub, Calendar, and Notion directly.
             </div>
+
+            <div className="feature-grid">
+              {FEATURE_CARDS.map((card) => (
+                <button
+                  key={card.title}
+                  className="feature-card"
+                  onClick={() => void controller.sendMessage(card.prompt)}
+                >
+                  <div className="feature-card-header">
+                    <span className="feature-card-icon">{card.icon}</span>
+                    <span className="feature-card-title">{card.title}</span>
+                  </div>
+                  <div className="feature-card-desc">{card.desc}</div>
+                </button>
+              ))}
+            </div>
+
             <div className="welcome-chips">
               {QUICK_PROMPTS.map((p) => (
                 <button
@@ -263,29 +365,159 @@ export function ChatView({ controller, model }: Props) {
               <div className="msg-avatar">
                 {msg.role === "user" ? "U" : "T"}
               </div>
-              <div className="bubble">
-                {msg.role === "assistant" ? (
-                  <MarkdownMessage content={msg.content} />
-                ) : (
-                  msg.content.split("\n").map((line, j, arr) => (
-                    <span key={j}>
-                      {line}
-                      {j < arr.length - 1 && <br />}
-                    </span>
-                  ))
+
+              <div className="msg-bubble-group">
+                <div className="bubble">
+                  {msg.role === "user" ? (
+                    <>
+                      {msg.toolName && (
+                        <div className="tool-invocation-label">
+                          <span>#</span>
+                          <span>{msg.toolName}</span>
+                        </div>
+                      )}
+                      {/* Strip "#Tool: " prefix from content if toolName is shown */}
+                      {msg.toolName
+                        ? msg.content
+                            .replace(/^#[^:]+:\s*/, "")
+                            .split("\n")
+                            .map((line, j, arr) => (
+                              <span key={j}>
+                                {line}
+                                {j < arr.length - 1 && <br />}
+                              </span>
+                            ))
+                        : msg.content.split("\n").map((line, j, arr) => (
+                            <span key={j}>
+                              {line}
+                              {j < arr.length - 1 && <br />}
+                            </span>
+                          ))}
+                    </>
+                  ) : (
+                    <>
+                      {msg.toolName && (
+                        <div className="tool-source-badge">
+                          <span>⚡</span>
+                          <span>via {msg.toolName}</span>
+                        </div>
+                      )}
+                      <MarkdownMessage content={msg.content} />
+                    </>
+                  )}
+                </div>
+
+                {/* Agent steps accordion */}
+                {msg.role === "assistant" && msg.stepResults && msg.stepResults.length > 0 && (
+                  <details className="agent-steps">
+                    <summary className="agent-steps-summary">
+                      <span>⚡</span>
+                      <span>Agent steps</span>
+                      <span className="agent-steps-count">{msg.stepResults.length}</span>
+                    </summary>
+                    <div className="agent-steps-list">
+                      {msg.stepResults.map((step, j) => (
+                        <div key={j} className="agent-step">
+                          <div
+                            className={`agent-step-status ${step.status === "success" ? "success" : "error"}`}
+                          >
+                            {step.status === "success" ? "✓" : "✗"}
+                          </div>
+                          <div className="agent-step-body">
+                            <div className="agent-step-name">{step.step}</div>
+                            <div className="agent-step-output">
+                              {step.output.length > 140
+                                ? step.output.slice(0, 140) + "…"
+                                : step.output}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </details>
                 )}
+
+                {/* BRN Validation Badge */}
+                {msg.role === "assistant" && msg.brnValidation?.enabled && (
+                  <div className={`brn-validation-badge ${msg.brnValidation.intent_check?.passed ? 'brn-passed' : 'brn-blocked'}`}>
+                    <span className="brn-badge-icon">
+                      {msg.brnValidation.intent_check?.passed ? "✓" : "🚫"}
+                    </span>
+                    <span className="brn-badge-text">
+                      {msg.brnValidation.intent_check?.passed 
+                        ? "BRN Passed" 
+                        : "BRN Blocked"}
+                    </span>
+                    {msg.brnValidation.intent_check?.policy_name && (
+                      <span className="brn-badge-policy">
+                        {msg.brnValidation.intent_check.policy_name}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                <div className="msg-meta">{formatTime(msg.timestamp)}</div>
               </div>
             </div>
           ))
         )}
 
+        {/* Pending approval card */}
+        {pendingApproval?.required && !loading && (
+          <div className="msg-row assistant">
+            <div className="msg-avatar">T</div>
+            <div className="msg-bubble-group" style={{ maxWidth: "72%" }}>
+              <div className="approval-card">
+                <div className="approval-card-header">
+                  <span className="approval-card-icon">⚠️</span>
+                  <div>
+                    <div className="approval-card-title">Action Requires Approval</div>
+                    {pendingApproval.level && (
+                      <div className="approval-card-level">
+                        Approval level: {pendingApproval.level}
+                      </div>
+                    )}
+                  </div>
+                </div>
+                {pendingApproval.description && (
+                  <div className="approval-card-description">
+                    {pendingApproval.description}
+                  </div>
+                )}
+                <div className="approval-card-actions">
+                  <button
+                    className="btn-approve"
+                    onClick={() => void controller.approveAction(true)}
+                  >
+                    ✓ Approve
+                  </button>
+                  <button
+                    className="btn-reject"
+                    onClick={() => void controller.approveAction(false)}
+                  >
+                    ✗ Reject
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Loading indicator */}
         {loading && (
           <div className="msg-row assistant">
             <div className="msg-avatar">T</div>
-            <div className="bubble thinking">
-              <span className="dot" />
-              <span className="dot" />
-              <span className="dot" />
+            <div className="msg-bubble-group">
+              <div className="processing-bubble">
+                <div className="processing-dots">
+                  <span className="processing-dot" />
+                  <span className="processing-dot" />
+                  <span className="processing-dot" />
+                </div>
+                <span className="processing-label">
+                  {PROCESSING_LABELS[processingLabelIdx]}
+                </span>
+              </div>
             </div>
           </div>
         )}
@@ -312,7 +544,10 @@ export function ChatView({ controller, model }: Props) {
               <div
                 key={u.email}
                 className="user-suggestion-item"
-                onMouseDown={(e) => { e.preventDefault(); handleSuggestionSelect(u); }}
+                onMouseDown={(e) => {
+                  e.preventDefault();
+                  handleSuggestionSelect(u);
+                }}
                 role="option"
                 tabIndex={-1}
               >
@@ -380,11 +615,10 @@ export function ChatView({ controller, model }: Props) {
               textareaRef.current?.focus();
             }}
           >
-            # to pick a tool
+            # pick a tool
           </span>
         </p>
       </div>
     </div>
   );
 }
-

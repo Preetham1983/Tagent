@@ -1,4 +1,4 @@
-"""Tagent orchestrator service — application entrypoint.
+"""Tagent orchestrator service - application entrypoint.
 
 Responsibilities of this file:
   - Load environment variables
