@@ -30,10 +30,21 @@ Tagent is an **AI orchestration agent** that connects to your real tools — Git
 |---|---|
 | 🧠 **LangGraph Brain** | Multi-node orchestration: Classify → Plan → Execute → Review → (Human Gate) |
 | 🛡️ **Human-in-the-Loop** | Risky actions pause and wait for your approval before executing |
+| 🎙️ **Headless Meeting Bot** | Playwright bot silently joins Teams meetings, extracts live captions, and executes tasks based on meeting context |
+| 📚 **Hybrid Persistent Memory** | Full chat history sidebar with PostgreSQL-backed LangGraph thread persistence |
+| ⚖️ **DACL Rule Engine** | Deterministic AI governance that enforces enterprise policies against agent actions |
 | 🔌 **MCP Tools** | 12+ integrations via the Model Context Protocol — plug in any tool |
 | 🤝 **Teams Native** | Full Microsoft Teams bot adapter — chat with your agent in Teams |
-| 🌐 **Web UI** | Clean React chat interface with MVC architecture |
 | 🐳 **Docker Ready** | One `docker compose up` and you're running |
+
+---
+
+## 🌟 Core Capabilities
+
+- **Meeting Observer & Transcriber**: An autonomous Playwright-based bot that joins Microsoft Teams meetings on your behalf, suppresses pre-join prompts, and extracts real-time captions without requiring admin-level Graph API permissions. It acts on discussions in real time.
+- **Persistent Chat & Context**: A ChatGPT-style UI with a sidebar for navigable chat history. Long-term memory is backed by PostgreSQL, allowing Tagent to remember decisions across sessions.
+- **Deterministic Policy Enforcement (DACL)**: Your enterprise rules are parsed into a deterministic graph. Every agent action is simulated and validated against these rules before execution.
+- **Real-Time Streaming**: Fast, responsive frontend with Server-Sent Events (SSE) streaming partial tokens directly from the backend.
 
 ---
 
@@ -56,20 +67,21 @@ Tagent is an **AI orchestration agent** that connects to your real tools — Git
 │   classify → plan → execute → review → [human gate] → end  │
 │                                                             │
 │   ┌─────────────┐    ┌────────────────┐   ┌─────────────┐  │
-│   │  Classifier │    │    Planner     │   │  Reviewer   │  │
-│   │  (intent)   │ →  │  (task steps)  │ → │ (risk scan) │  │
+│   │ Classifier  │    │    Planner     │   │ DACL Policy │  │
+│   │ (intent)    │ →  │  (task steps)  │ → │ Rule Engine │  │
 │   └─────────────┘    └────────────────┘   └──────┬──────┘  │
-│                                                   │         │
+│                                                  │          │
 │                              ┌─── AUTO ───────── END        │
-│                              └─── HUMAN ──→ Human Gate       │
-└──────────────────────────────────────────────────────────────┘
-             │ MCP / stdio
-             ▼
+│                              └─── HUMAN ──→ Human Gate      │
+└───────────────────────┬─────────────────────────────────────┘
+                        │ MCP / stdio (PostgreSQL Checkpoints)
+                        ▼
 ┌─────────────────────────────────────────────────────────────┐
 │                    MCP Tools Service                         │
 │                                                             │
-│  GitHub · Jira · Notion · Google Calendar · Teams           │
-│  Graph API · Meetings · Memory · Playwright · Automation    │
+│  🤖 Playwright Meeting Bot (Live Teams Caption Scraper)      │
+│  🐙 GitHub · 📋 Jira · 📝 Notion · 📅 Google Calendar        │
+│  📊 Microsoft Graph API · ⚡ Workflow Automation             │
 └─────────────────────────────────────────────────────────────┘
 ```
 
