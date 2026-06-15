@@ -38,5 +38,26 @@ if _env_file.exists():
         pass
 
 # ── 4. Import the FastAPI app ─────────────────────────────────────────────
-# This is the same FastAPI `app` defined in orchestrator-service/main.py
-from main import app  # noqa: E402, F401
+try:
+    from main import app  # noqa: E402, F401
+except Exception as e:
+    import traceback
+    
+    _err = traceback.format_exc()
+    _path_info = "\\n".join(sys.path)
+    
+    try:
+        _ls = str(list(_project_root.iterdir()))
+    except Exception as e2:
+        _ls = f"Error listing root: {e2}"
+        
+    async def app(scope, receive, send):
+        await send({
+            "type": "http.response.start",
+            "status": 500,
+            "headers": [[b"content-type", b"text/plain"]],
+        })
+        await send({
+            "type": "http.response.body",
+            "body": f"Import Error:\\n{_err}\\n\\nSYS PATH:\\n{_path_info}\\n\\nROOT DIR:\\n{_ls}".encode(),
+        })
