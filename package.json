@@ -2,10 +2,7 @@
   "name": "tagent",
   "version": "1.0.0",
   "private": true,
-  "workspaces": [
-    "frontend"
-  ],
   "scripts": {
-    "build": "npm run build --workspace=tagent-frontend"
+    "build": "cd frontend && npm install && npm run build"
   }
 }

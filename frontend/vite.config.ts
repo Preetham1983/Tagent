@@ -3,10 +3,6 @@ import { defineConfig } from "vite";
 const ORCHESTRATOR_INTERNAL = process.env.ORCHESTRATOR_INTERNAL_URL ?? "http://orchestrator-service:8001";
 
 export default defineConfig({
-  build: {
-    outDir: "../dist",
-    emptyOutDir: true,
-  },
   server: {
     port: 5173,
     proxy: {
