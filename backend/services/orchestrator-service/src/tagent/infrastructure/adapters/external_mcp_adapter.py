@@ -35,7 +35,8 @@ class ExternalMCPAdapter:
     def _load_cached_token() -> str:
         """Load delegated access token from tagent cache."""
         import time
-        cache_file = os.path.join(os.path.expanduser("~"), ".tagent", "ms_graph_token_cache.json")
+        _cache_dir = os.environ.get("TOKEN_CACHE_DIR", os.path.join(os.path.expanduser("~"), ".tagent"))
+        cache_file = os.path.join(_cache_dir, "ms_graph_token_cache.json")
         try:
             with open(cache_file, "r", encoding="utf-8") as f:
                 cached = json.load(f)

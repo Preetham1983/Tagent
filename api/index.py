@@ -21,12 +21,19 @@ for p in [str(_orch_src), str(_mcp_src), str(_orch_root)]:
         sys.path.insert(0, p)
 
 # ── 2. Set MCP subprocess environment for serverless ──────────────────────
+# Force-set path vars — never let stale dashboard env vars (e.g. Windows paths) win.
 _mcp_cwd = str(_project_root / "backend" / "services" / "mcp-tools-service")
-os.environ.setdefault("MCP_EXTERNAL_CWD", _mcp_cwd)
-os.environ.setdefault("MCP_EXTERNAL_COMMAND", "python")
+os.environ["MCP_EXTERNAL_CWD"] = _mcp_cwd
+# Use the same interpreter running this process so the subprocess inherits packages.
+os.environ["MCP_EXTERNAL_COMMAND"] = sys.executable
 os.environ.setdefault("MCP_EXTERNAL_ARGS", '["main.py"]')
 os.environ.setdefault("MCP_EXTERNAL_ENABLED", "true")
 os.environ.setdefault("MCP_EXTERNAL_TYPE", "stdio")
+# Pass sys.path so the subprocess can find packages installed by uv.
+os.environ["PYTHONPATH"] = os.pathsep.join(p for p in sys.path if p)
+
+# ── 2b. Token cache — /tmp is writable on Vercel; ~ (/root) is read-only ──
+os.environ.setdefault("TOKEN_CACHE_DIR", "/tmp/.tagent")
 
 # ── 3. Load .env from orchestrator if it exists (fallback for local) ──────
 _env_file = _orch_root / ".env"

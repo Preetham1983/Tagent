@@ -11,7 +11,8 @@ from fastapi import APIRouter, HTTPException, Request
 
 router = APIRouter(prefix="/auth/teams")
 
-_MS_TOKEN_CACHE = os.path.join(os.path.expanduser("~"), ".tagent", "ms_graph_token_cache.json")
+_CACHE_DIR = os.environ.get("TOKEN_CACHE_DIR", os.path.join(os.path.expanduser("~"), ".tagent"))
+_MS_TOKEN_CACHE = os.path.join(_CACHE_DIR, "ms_graph_token_cache.json")
 _MS_SCOPES = "User.Read Chat.ReadWrite Chat.Read ChannelMessage.Send offline_access"
 
 
