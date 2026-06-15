@@ -12,7 +12,11 @@
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "functions": {
-    "api/*.py": {
+    "api/index.py": {
+      "memory": 1024,
+      "maxDuration": 60
+    },
+    "api/messages.py": {
       "memory": 1024,
       "maxDuration": 60
     }
