@@ -64,6 +64,7 @@ export type ToolId =
   | "create_google_calendar_event"
   // Microsoft 365 / Teams
   | "list_calendar_events"
+  | "join_meeting_as_bot"
   | "send_direct_message"
   | "schedule_meeting"
   | "get_user_info"

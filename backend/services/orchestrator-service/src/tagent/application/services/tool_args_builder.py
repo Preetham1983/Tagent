@@ -145,6 +145,12 @@ def build_tool_args(req: DirectToolRequest) -> dict:
     if tool_name == "analyze_onedrive_transcript":
         return {"meeting_name": req.query or ""}
 
+    if tool_name == "join_meeting_as_bot":
+        raw = req.query or ""
+        url_match = re.search(r"(https?://teams\.microsoft\.com[^\s>\"']+)", raw)
+        meeting_url = url_match.group(1) if url_match else raw
+        return {"meeting_url": meeting_url, "duration_seconds": 30}
+
     # Default fallback
     return {"query": req.query} if req.query else {}
 

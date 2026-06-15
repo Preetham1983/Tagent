@@ -400,3 +400,25 @@ def register_automation_tools(server: Server) -> None:
                 "file_found": file_name,
                 "transcript": extracted_text[:25000]  # Cap length to avoid huge token usage
             }
+
+    @server.tool()
+    async def trigger_power_automate_workflow(webhook_url: str, payload: dict) -> dict:
+        """Trigger a Microsoft Power Automate workflow via HTTP webhook."""
+        async with httpx.AsyncClient(timeout=60) as http:
+            try:
+                r = await http.post(webhook_url, json=payload)
+                if r.status_code in (200, 202):
+                    return {
+                        "status": "ok",
+                        "response": r.json() if r.text else "Workflow triggered successfully."
+                    }
+                else:
+                    return {
+                        "status": "error",
+                        "message": f"Power Automate returned status {r.status_code}: {r.text}"
+                    }
+            except Exception as e:
+                return {
+                    "status": "error",
+                    "message": f"Failed to trigger Power Automate: {str(e)}"
+                }

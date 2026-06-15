@@ -142,6 +142,14 @@ const MS_TEAMS_365_TOOLS: CommandTool[] = [
     placeholderQuery: "",
   },
   {
+    id: "join_meeting_as_bot",
+    label: "Join Meeting as Bot",
+    icon: "🤖",
+    description: "Join a Teams meeting as Tagent Note-Taker and scrape live captions",
+    category: "Microsoft 365",
+    placeholderQuery: "Paste Teams meeting URL here",
+  },
+  {
     id: "send_direct_message",
     label: "Send Teams Message",
     icon: "💬",

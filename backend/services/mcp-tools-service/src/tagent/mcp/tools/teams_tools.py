@@ -5,10 +5,17 @@ from __future__ import annotations
 import httpx
 from mcp.server import Server
 from tagent.mcp.tools._token import get_graph_token as _get_graph_token
+from tagent.mcp.tools.playwright_bot import join_teams_meeting
+
 
 
 def register_teams_tools(server: Server) -> None:
     """Register Teams tools (send message, post card, read channel)."""
+
+    @server.tool()
+    async def join_meeting_as_bot(meeting_url: str, duration_seconds: int = 30) -> str:
+        """Joins a Teams meeting as an AI bot using Playwright and extracts live captions."""
+        return await join_teams_meeting(meeting_url, duration_seconds)
 
     @server.tool()
     async def send_teams_message(team_id: str, channel_id: str, message: str) -> dict:

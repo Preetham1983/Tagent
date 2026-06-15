@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     mcp_external_type: str = "stdio"
     mcp_external_http_url: str = ""
     mcp_external_summary_tool: str = ""
-    mcp_external_timeout_seconds: int = 20
+    mcp_external_timeout_seconds: int = 60  # 1 min — enough for join_meeting_as_bot (30s listen + 30s overhead)
 
     # DACL external MCP server (SSE/HTTP transport at localhost:8080)
     dacl_mcp_url: str = "http://localhost:8080/sse"

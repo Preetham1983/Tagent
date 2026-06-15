@@ -16,7 +16,16 @@ dependencies = [
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
     "playwright>=1.60.0",
+    "graphifyy>=0.8.38",
+    "textual>=3.0",
+    "InquirerPy>=0.3.4",
 ]
+
+[project.scripts]
+tagent = "cli.main:main"
+
+[tool.setuptools.packages.find]
+include = ["cli*"]
 
 [project.optional-dependencies]
 dev = [

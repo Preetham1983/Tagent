@@ -14,7 +14,7 @@ from tagent.application.services.tool_response_formatter import get_system_promp
 
 router = APIRouter()
 
-_TOOL_TIMEOUT = 60  # seconds
+_TOOL_TIMEOUT = 180  # seconds
 
 _GCAL_TOOLS = {
     "list_google_calendar_events", "list-events",

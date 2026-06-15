@@ -14,6 +14,44 @@ venv
 env
 
 # uv — lock file IS committed (ensures reproducible installs)
+
+# Secrets / environment variables
+.env
+.env.*
+!.env.example
+
+# Node
+node_modules/
+frontend/node_modules/
+
+# Frontend build output
+frontend/dist/
+
+# Graphify knowledge graph outputs (local only, can be rebuilt)
+graphify-out/
+
+# IDE / editor
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp / scratch files
+temp/
+*.tmp
+*.log
+
+# Test / coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Docker
+*.dockerignore
 # uv.lock  ← intentionally tracked
 
 # Environment files — NEVER commit secrets
