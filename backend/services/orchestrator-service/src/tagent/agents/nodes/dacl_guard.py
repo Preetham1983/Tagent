@@ -133,18 +133,13 @@ async def dacl_guard(state: AgentState) -> dict:
     user_role: str = state.get("user_role") or "authenticated_user"
     user_tier: str = state.get("user_tier") or "professional"
 
-    # 🚫 BLOCK GENERAL_CHAT: Treat vague/unclear queries as policy violations
-    if intent == Intent.GENERAL_CHAT:
+    # For general chat and unknown intents, skip DACL entirely and allow.
+    if intent in (Intent.GENERAL_CHAT, Intent.UNKNOWN):
         return {
             "dacl_result": {
-                "allowed": "no",
-                "auto_execute": "no",
-                "requires_approval": "deny",
-                "fallback_action": "escalate_to_human",
-                "log_level": "warn",
-                "policy_name": "TAGENT_POLICY_GENERAL_CHAT_BLOCKED",
-                "dacl_available": True,
-                "raw": {"reason": "General chat queries are blocked by policy"},
+                "allowed": "yes",
+                "auto_execute": "yes",
+                "dacl_available": False,
             }
         }
 

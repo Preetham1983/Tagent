@@ -194,18 +194,23 @@ async def _handle_gcal(req: DirectToolRequest, s) -> dict:
     llm = get_default_adapter()
     tool_name = req.tool_name
 
+    _LLM_TIMEOUT = 30.0
+
     if tool_name in ("list_google_calendar_events", "list-events"):
         args = {"timeMin": req.query} if req.query else {}
         result = await asyncio.wait_for(gcal.call_tool("list-events", args), timeout=_TOOL_TIMEOUT)
         _check_gcal_error(result)
-        response = await llm.complete([
-            {"role": "system", "content": (
-                "You are Tagent. Format the Google Calendar events into a clean schedule. "
-                "Show start time, title, location, and any Google Meet link. "
-                "If no events, say the calendar is clear."
-            )},
-            {"role": "user", "content": f"Result:\n{json.dumps(result, indent=2)}"},
-        ])
+        try:
+            response = await asyncio.wait_for(llm.complete([
+                {"role": "system", "content": (
+                    "You are Tagent. Format the Google Calendar events into a clean schedule. "
+                    "Show start time, title, location, and any Google Meet link. "
+                    "If no events, say the calendar is clear."
+                )},
+                {"role": "user", "content": f"Result:\n{json.dumps(result, indent=2)}"},
+            ]), timeout=_LLM_TIMEOUT)
+        except Exception:
+            response = json.dumps(result, indent=2)
         return {"status": "ok", "tool": tool_name, "response": response, "raw": result}
 
     if tool_name in ("search_google_calendar_events", "search-events"):
@@ -213,23 +218,29 @@ async def _handle_gcal(req: DirectToolRequest, s) -> dict:
             gcal.call_tool("search-events", {"query": req.query or ""}), timeout=_TOOL_TIMEOUT
         )
         _check_gcal_error(result)
-        response = await llm.complete([
-            {"role": "system", "content": "You are Tagent. Format the Google Calendar search results into a readable list."},
-            {"role": "user", "content": f"Result:\n{json.dumps(result, indent=2)}"},
-        ])
+        try:
+            response = await asyncio.wait_for(llm.complete([
+                {"role": "system", "content": "You are Tagent. Format the Google Calendar search results into a readable list."},
+                {"role": "user", "content": f"Result:\n{json.dumps(result, indent=2)}"},
+            ]), timeout=_LLM_TIMEOUT)
+        except Exception:
+            response = json.dumps(result, indent=2)
         return {"status": "ok", "tool": tool_name, "response": response, "raw": result}
 
     # create-event
     gcal_args = _build_gcal_create_args(req)
     result = await asyncio.wait_for(gcal.call_tool("create-event", gcal_args), timeout=_TOOL_TIMEOUT)
     _check_gcal_error(result)
-    response = await llm.complete([
-        {"role": "system", "content": (
-            "You are Tagent. Confirm the Google Calendar event was created. "
-            "Show the title, time, attendees, and the Google Meet link if available."
-        )},
-        {"role": "user", "content": f"Result:\n{json.dumps(result, indent=2)}"},
-    ])
+    try:
+        response = await asyncio.wait_for(llm.complete([
+            {"role": "system", "content": (
+                "You are Tagent. Confirm the Google Calendar event was created. "
+                "Show the title, time, attendees, and the Google Meet link if available."
+            )},
+            {"role": "user", "content": f"Result:\n{json.dumps(result, indent=2)}"},
+        ]), timeout=_LLM_TIMEOUT)
+    except Exception:
+        response = json.dumps(result, indent=2)
     return {"status": "ok", "tool": tool_name, "response": response, "raw": result}
 
 
@@ -344,22 +355,25 @@ async def _handle_dacl(req: DirectToolRequest, s) -> dict:
             error_msg += " | Sub-errors: " + ", ".join(str(e) for e in exc.exceptions)
         raise HTTPException(status_code=502, detail=f"DACL MCP error: {error_msg[:500]}")
 
-    response = await llm.complete([
-        {
-            "role": "system",
-            "content": (
-                "You are Tagent, an enterprise AI assistant. "
-                "The user just called the DACL business rule engine. "
-                "Format the result clearly: show the calculated premium, "
-                "the tier, any conditions applied, and what the result means in plain English. "
-                "If it is a policy list, format it as a clean numbered or bulleted list."
-            ),
-        },
-        {
-            "role": "user",
-            "content": f"Tool: {req.tool_name}\nArgs: {json.dumps(tool_args)}\nResult:\n{dacl_data['raw']}",
-        },
-    ])
+    try:
+        response = await asyncio.wait_for(llm.complete([
+            {
+                "role": "system",
+                "content": (
+                    "You are Tagent, an enterprise AI assistant. "
+                    "The user just called the DACL business rule engine. "
+                    "Format the result clearly: show the calculated premium, "
+                    "the tier, any conditions applied, and what the result means in plain English. "
+                    "If it is a policy list, format it as a clean numbered or bulleted list."
+                ),
+            },
+            {
+                "role": "user",
+                "content": f"Tool: {req.tool_name}\nArgs: {json.dumps(tool_args)}\nResult:\n{dacl_data['raw']}",
+            },
+        ]), timeout=30.0)
+    except Exception:
+        response = f"**{req.tool_name}** result:\n```\n{dacl_data['raw']}\n```"
     return {"status": "ok", "tool": req.tool_name, "response": response, "raw": dacl_data["raw"]}
 
 
@@ -468,8 +482,16 @@ async def _handle_mcp(req: DirectToolRequest, s) -> dict:
 
     llm = get_default_adapter()
     system_prompt = get_system_prompt(tool_name)
-    response = await llm.complete([
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": f"Tool: {tool_name}\nArgs: {json.dumps(args)}\nResult:\n{json.dumps(mcp_data, indent=2)}"},
-    ])
+    try:
+        response = await asyncio.wait_for(
+            llm.complete([
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": f"Tool: {tool_name}\nArgs: {json.dumps(args)}\nResult:\n{json.dumps(mcp_data, indent=2)}"},
+            ]),
+            timeout=30.0,
+        )
+    except Exception:
+        # LLM unavailable — surface the raw tool output directly
+        raw_text = mcp_data.get("output") or json.dumps(mcp_data, indent=2)
+        response = f"**{tool_name}** result:\n```\n{raw_text}\n```"
     return {"status": "ok", "tool": tool_name, "response": response, "raw": mcp_data}

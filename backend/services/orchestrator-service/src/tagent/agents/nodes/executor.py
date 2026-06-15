@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 
 from tagent.agents.state import AgentState
@@ -648,10 +649,24 @@ async def execute(state: AgentState) -> dict:
                 system_prompt += f"\nRelevant Knowledge/Context:\n{mcp_context}\n"
 
             llm = get_default_adapter()
-            response = await llm.complete([
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message},
-            ])
+            _FALLBACK = (
+                "Hello! I'm Tagent, your enterprise AI assistant. I can help you with:\n"
+                "• **Jira** — create tasks, search issues, update tickets\n"
+                "• **Calendar** — show today's schedule, find free slots, schedule meetings\n"
+                "• **Teams** — send messages, summarize meetings\n"
+                "• **GitHub & Notion** — query repos and databases\n\n"
+                "Try: *list my jira issues*, *show today's calendar*, or *schedule a meeting*."
+            )
+            try:
+                response = await asyncio.wait_for(
+                    llm.complete([
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_message},
+                    ]),
+                    timeout=30.0,
+                )
+            except Exception:
+                response = _FALLBACK
 
             tool_results.append({
                 "step": step_name,

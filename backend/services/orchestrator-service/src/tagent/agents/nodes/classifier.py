@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 
 from tagent.agents.state import AgentState
@@ -102,14 +103,15 @@ async def classify(state: AgentState) -> dict:
     if not content.strip():
         return {"intent": Intent.GENERAL_CHAT}
 
-    # Try LLM-based classification
+    # Try LLM-based classification with a short timeout so slow/misconfigured
+    # Azure OpenAI doesn't block the response for 2 minutes.
     try:
         llm = get_default_adapter()
         llm_messages = [
             {"role": "system", "content": _CLASSIFICATION_PROMPT},
             {"role": "user", "content": content},
         ]
-        raw = await llm.complete(llm_messages)
+        raw = await asyncio.wait_for(llm.complete(llm_messages), timeout=15.0)
         intent_str = raw.strip().lower().replace('"', "").replace("'", "")
 
         if intent_str in _VALID_INTENTS:
