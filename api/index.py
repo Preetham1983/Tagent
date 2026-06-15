@@ -26,7 +26,7 @@ _mcp_cwd = str(_project_root / "backend" / "services" / "mcp-tools-service")
 os.environ["MCP_EXTERNAL_CWD"] = _mcp_cwd
 # Use the same interpreter running this process so the subprocess inherits packages.
 os.environ["MCP_EXTERNAL_COMMAND"] = sys.executable
-os.environ.setdefault("MCP_EXTERNAL_ARGS", '["main.py"]')
+os.environ["MCP_EXTERNAL_ARGS"] = '["main.py"]'
 os.environ.setdefault("MCP_EXTERNAL_ENABLED", "true")
 os.environ.setdefault("MCP_EXTERNAL_TYPE", "stdio")
 # Pass sys.path so the subprocess can find packages installed by uv.
