@@ -365,6 +365,30 @@ async def _handle_dacl(req: DirectToolRequest, s) -> dict:
 
 # ── Generic MCP subprocess ─────────────────────────────────────────────────────
 
+async def _diagnose_mcp_subprocess(command: str, args: list, cwd: str | None, env: dict) -> str:
+    """Run subprocess briefly and return its stderr if it crashes on startup."""
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            command, *args,
+            stdin=asyncio.subprocess.DEVNULL,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=cwd,
+            env=env,
+        )
+        try:
+            stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=6.0)
+            out = stdout.decode(errors="replace").strip()
+            err = stderr.decode(errors="replace").strip()
+            return f"exit={proc.returncode} | stderr: {err[:400]}" + (f" | stdout: {out[:200]}" if out else "")
+        except asyncio.TimeoutError:
+            proc.kill()
+            await proc.wait()
+            return "(subprocess still running after 6s — startup OK, protocol issue)"
+    except Exception as exc:
+        return f"could not launch: {exc}"
+
+
 async def _handle_mcp(req: DirectToolRequest, s) -> dict:
     from mcp.client.session import ClientSession
     from mcp.client.stdio import StdioServerParameters, stdio_client
@@ -423,7 +447,14 @@ async def _handle_mcp(req: DirectToolRequest, s) -> dict:
         cause = exc
         while hasattr(cause, "exceptions") and cause.exceptions:
             cause = cause.exceptions[0]
-        raise HTTPException(status_code=500, detail=f"Tool call failed: {str(cause)[:400]}")
+        error_str = str(cause)
+        if any(k in error_str.lower() for k in ("closed", "eof", "connect", "broken pipe")):
+            diag = await _diagnose_mcp_subprocess(
+                adapter._command, adapter._args, adapter._cwd, os.environ.copy()
+            )
+            if diag:
+                error_str = f"MCP subprocess crash: {diag}"
+        raise HTTPException(status_code=500, detail=f"Tool call failed: {error_str[:500]}")
 
     if mcp_data.get("status") == "not_configured":
         raise HTTPException(
