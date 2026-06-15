@@ -9,7 +9,11 @@
     {
       "src": "api/*.py",
       "use": "@vercel/python",
-      "config": { "includeFiles": "backend/**" }
+      "config": {
+        "includeFiles": "backend/**",
+        "memory": 1024,
+        "maxDuration": 60
+      }
     }
   ],
   "routes": [
@@ -22,11 +26,5 @@
     { "src": "/tool/(.*)", "dest": "/api/index.py" },
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/index.html" }
-  ],
-  "functions": {
-    "api/*.py": {
-      "memory": 1024,
-      "maxDuration": 60
-    }
-  }
+  ]
 }
