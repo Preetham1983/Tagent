@@ -1,40 +1,29 @@
-# Development and testing
-tests/
-temp/
-*.egg-info/
-__pycache__/
-*.pyc
-.pytest_cache/
-.venv/
-venv/
-
-# Docker files
-Dockerfile
-docker-compose.yml
-*.dockerfile
-
-# Documentation
-*.md
-!README.md
-docs/
-
-# Build artifacts
-graphify-out/
-frontend/node_modules/
-frontend/dist/
-
-# Config files
-.env
-.env.local
-*.bat
-*.ps1
-
-# IDE
+# Only exclude what's absolutely unnecessary
+.git/
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# Git
-.git/
-.gitignore
+# Local development
+.env.local
+.venv/
+venv/
+
+# Tests and temp files
+tests/
+temp/
+
+# Build artifacts that should be rebuilt
+frontend/node_modules/
+graphify-out/
+
+# Python cache
+__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+
+# Scripts
+*.bat
+*.ps1

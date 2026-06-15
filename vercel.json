@@ -1,22 +1,8 @@
 {
-  "buildCommand": "cd frontend && npm install && npm run build",
+  "buildCommand": "npm --prefix frontend install && npm --prefix frontend run build",
   "outputDirectory": "frontend/dist",
   "rewrites": [
-    { "source": "/api/messages", "destination": "/api/messages" },
-    { "source": "/orchestrate", "destination": "/api/index" },
-    { "source": "/approve", "destination": "/api/index" },
-    { "source": "/health", "destination": "/api/index" },
-    { "source": "/settings/(.*)", "destination": "/api/index" },
-    { "source": "/auth/(.*)", "destination": "/api/index" },
-    { "source": "/tool/(.*)", "destination": "/api/index" },
-    { "source": "/(.*)", "destination": "/index.html" }
-  ],
-  "functions": {
-    "api/index.py": {
-      "includeFiles": "backend/**"
-    },
-    "api/messages.py": {
-      "includeFiles": "backend/**"
-    }
-  }
+    { "source": "/api/(.*)", "destination": "/api/$1" },
+    { "source": "/(.*)", "destination": "/$1" }
+  ]
 }
