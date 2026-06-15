@@ -27,3 +27,10 @@ __pycache__/
 # Scripts
 *.bat
 *.ps1
+
+# Backend build artifacts not needed in Vercel lambda
+uv.lock
+Dockerfile
+docker-compose.yml
+*.egg-info/
+graphify-out/
