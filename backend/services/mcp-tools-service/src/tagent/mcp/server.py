@@ -2,34 +2,36 @@
 
 from __future__ import annotations
 
+import sys
+
 from mcp.server.fastmcp import FastMCP
 
-from tagent.mcp.tools.briefing_tools import register_briefing_tools
-from tagent.mcp.tools.calendar_tools import register_calendar_tools
-from tagent.mcp.tools.automation_tools import register_automation_tools
-from tagent.mcp.tools.github_tools import register_github_tools
-from tagent.mcp.tools.graph_api_tools import register_graph_api_tools
-from tagent.mcp.tools.jira_tools import register_jira_tools
-from tagent.mcp.tools.meeting_tools import register_meeting_tools
-from tagent.mcp.tools.memory_tools import register_memory_tools
-from tagent.mcp.tools.notion_tools import register_notion_tools
-from tagent.mcp.tools.teams_tools import register_teams_tools
+_TOOL_MODULES = [
+    ("tagent.mcp.tools.meeting_tools", "register_meeting_tools"),
+    ("tagent.mcp.tools.graph_api_tools", "register_graph_api_tools"),
+    ("tagent.mcp.tools.calendar_tools", "register_calendar_tools"),
+    ("tagent.mcp.tools.briefing_tools", "register_briefing_tools"),
+    ("tagent.mcp.tools.automation_tools", "register_automation_tools"),
+    ("tagent.mcp.tools.jira_tools", "register_jira_tools"),
+    ("tagent.mcp.tools.teams_tools", "register_teams_tools"),
+    ("tagent.mcp.tools.memory_tools", "register_memory_tools"),
+    ("tagent.mcp.tools.github_tools", "register_github_tools"),
+    ("tagent.mcp.tools.notion_tools", "register_notion_tools"),
+]
 
 
 def create_mcp_server() -> FastMCP:
     """Create and configure the MCP tool server with all available tools."""
+    import importlib
+
     mcp = FastMCP("tagent-tools")
 
-    register_meeting_tools(mcp)
-    register_graph_api_tools(mcp)
-    register_calendar_tools(mcp)
-    register_briefing_tools(mcp)
-    register_automation_tools(mcp)
-    register_jira_tools(mcp)
-    register_teams_tools(mcp)
-    register_memory_tools(mcp)
-    register_github_tools(mcp)
-    register_notion_tools(mcp)
+    for module_path, fn_name in _TOOL_MODULES:
+        try:
+            mod = importlib.import_module(module_path)
+            getattr(mod, fn_name)(mcp)
+        except Exception as exc:
+            print(f"[tagent-mcp] Skipping {module_path}: {exc}", file=sys.stderr)
 
     return mcp
 

@@ -420,8 +420,10 @@ async def _handle_mcp(req: DirectToolRequest, s) -> dict:
     except BaseException as exc:
         import traceback
         traceback.print_exc()
-        cause = exc.exceptions[0] if hasattr(exc, "exceptions") and exc.exceptions else exc
-        raise HTTPException(status_code=500, detail=f"Tool call failed: {str(cause)[:300]}")
+        cause = exc
+        while hasattr(cause, "exceptions") and cause.exceptions:
+            cause = cause.exceptions[0]
+        raise HTTPException(status_code=500, detail=f"Tool call failed: {str(cause)[:400]}")
 
     if mcp_data.get("status") == "not_configured":
         raise HTTPException(
