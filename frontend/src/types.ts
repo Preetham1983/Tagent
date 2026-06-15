@@ -140,6 +140,7 @@ export type TeamsDeviceCodeResponse = {
 export type TeamsAuthPollResponse = {
   status: "ok" | "pending" | "error";
   message?: string;
+  token_data?: string;
 };
 
 export type JiraSettings = {

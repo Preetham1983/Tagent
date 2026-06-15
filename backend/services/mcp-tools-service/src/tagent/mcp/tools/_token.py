@@ -12,13 +12,19 @@ import time
 
 import httpx
 
-_CACHE_FILE = os.path.join(os.path.expanduser("~"), ".tagent", "ms_graph_token_cache.json")
+def _cache_file() -> str:
+    cache_dir = os.environ.get(
+        "TOKEN_CACHE_DIR",
+        os.path.join(os.path.expanduser("~"), ".tagent"),
+    )
+    return os.path.join(cache_dir, "ms_graph_token_cache.json")
 
 
 async def get_graph_token() -> str | None:
     """Return a valid MS Graph access token, auto-refreshing if the current one is expired."""
+    cache_file = _cache_file()
     try:
-        with open(_CACHE_FILE, "r", encoding="utf-8") as f:
+        with open(cache_file, "r", encoding="utf-8") as f:
             cached = json.load(f)
     except (FileNotFoundError, json.JSONDecodeError):
         return None
@@ -66,7 +72,9 @@ async def get_graph_token() -> str | None:
             cached["token_expiry"] = time.time() + token_data.get("expires_in", 3600)
             cached["updated_at"] = int(time.time())
 
-            with open(_CACHE_FILE, "w", encoding="utf-8") as f:
+            cache_file = _cache_file()
+            os.makedirs(os.path.dirname(cache_file), exist_ok=True)
+            with open(cache_file, "w", encoding="utf-8") as f:
                 json.dump(cached, f, indent=2)
 
             return cached["access_token"]

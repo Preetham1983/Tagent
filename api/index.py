@@ -54,8 +54,27 @@ try:
     # Vercel passes the full request path (e.g. /api/orchestrate) to the ASGI
     # app, but the orchestrator's routes are registered without the /api prefix.
     # Strip it here so FastAPI can match them.
+    # Also: extract X-MS-Token header (base64-encoded token cache blob) and
+    # write it to /tmp/.tagent so the MCP subprocess can find it within this
+    # lambda invocation (Vercel instances don't share /tmp across requests).
     async def app(scope, receive, send):
         if scope["type"] in ("http", "websocket"):
+            # --- token passthrough ---
+            raw_headers = scope.get("headers", [])
+            for hname, hval in raw_headers:
+                if hname.lower() == b"x-ms-token":
+                    try:
+                        import base64, json, pathlib
+                        token_json = base64.b64decode(hval).decode("utf-8")
+                        token_data = json.loads(token_json)
+                        cache_dir = os.environ.get("TOKEN_CACHE_DIR", "/tmp/.tagent")
+                        cache_path = pathlib.Path(cache_dir) / "ms_graph_token_cache.json"
+                        cache_path.parent.mkdir(parents=True, exist_ok=True)
+                        cache_path.write_text(json.dumps(token_data), encoding="utf-8")
+                    except Exception:
+                        pass
+                    break
+            # --- strip /api prefix ---
             path = scope.get("path", "")
             if path.startswith("/api"):
                 scope = dict(scope)

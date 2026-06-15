@@ -89,6 +89,12 @@ async def poll_teams_auth(req: Request) -> dict:
         os.makedirs(os.path.dirname(_MS_TOKEN_CACHE), exist_ok=True)
         with open(_MS_TOKEN_CACHE, "w", encoding="utf-8") as f:
             json.dump(cache, f, indent=2)
-        return {"status": "ok", "message": "Microsoft Teams connected successfully!"}
+        import base64
+        token_b64 = base64.b64encode(json.dumps(cache).encode()).decode()
+        return {
+            "status": "ok",
+            "message": "Microsoft Teams connected successfully!",
+            "token_data": token_b64,
+        }
 
     return {"status": "error", "message": "Unexpected response from Azure AD"}
