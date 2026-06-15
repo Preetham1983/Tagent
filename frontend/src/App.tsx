@@ -12,7 +12,7 @@ export function App() {
   // Only fall back to localhost during local dev.
   const baseUrl =
     import.meta.env.VITE_ORCHESTRATOR_BASE_URL ??
-    (window.location.hostname === "localhost" ? "http://localhost:8001" : "");
+    (window.location.hostname === "localhost" ? "http://localhost:8001" : "/api");
 
   const modelRef = useRef<AgentModel | null>(null);
   const controllerRef = useRef<ChatController | null>(null);

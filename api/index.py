@@ -43,7 +43,21 @@ app = None
 # ── 4. Import the FastAPI app ─────────────────────────────────────────────
 try:
     from main import app as _real_app
-    app = _real_app
+
+    # Vercel passes the full request path (e.g. /api/orchestrate) to the ASGI
+    # app, but the orchestrator's routes are registered without the /api prefix.
+    # Strip it here so FastAPI can match them.
+    async def app(scope, receive, send):
+        if scope["type"] in ("http", "websocket"):
+            path = scope.get("path", "")
+            if path.startswith("/api"):
+                scope = dict(scope)
+                scope["path"] = path[4:] or "/"
+                raw_path = scope.get("raw_path", b"")
+                if isinstance(raw_path, bytes) and raw_path.startswith(b"/api"):
+                    scope["raw_path"] = raw_path[4:] or b"/"
+        await _real_app(scope, receive, send)
+
 except Exception as e:
     import traceback
     _err = traceback.format_exc()
@@ -52,8 +66,8 @@ except Exception as e:
         _ls = str(list(_project_root.iterdir()))
     except Exception as e2:
         _ls = f"Error listing root: {e2}"
-        
-    async def fallback_app(scope, receive, send):
+
+    async def app(scope, receive, send):
         await send({
             "type": "http.response.start",
             "status": 500,
@@ -63,4 +77,3 @@ except Exception as e:
             "type": "http.response.body",
             "body": f"Import Error:\n{_err}\n\nSYS PATH:\n{_path_info}\n\nROOT DIR:\n{_ls}".encode(),
         })
-    app = fallback_app
