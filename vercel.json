@@ -1,24 +1,22 @@
 {
-  "version": 2,
+  "buildCommand": "cd frontend && npm install && npm run build",
   "outputDirectory": "frontend/dist",
   "rewrites": [
-    { "source": "/api/messages", "destination": "/api/messages.py" },
-    { "source": "/orchestrate", "destination": "/api/index.py" },
-    { "source": "/approve", "destination": "/api/index.py" },
-    { "source": "/health", "destination": "/api/index.py" },
-    { "source": "/settings/(.*)", "destination": "/api/index.py" },
-    { "source": "/auth/(.*)", "destination": "/api/index.py" },
-    { "source": "/tool/(.*)", "destination": "/api/index.py" },
+    { "source": "/api/messages", "destination": "/api/messages" },
+    { "source": "/orchestrate", "destination": "/api/index" },
+    { "source": "/approve", "destination": "/api/index" },
+    { "source": "/health", "destination": "/api/index" },
+    { "source": "/settings/(.*)", "destination": "/api/index" },
+    { "source": "/auth/(.*)", "destination": "/api/index" },
+    { "source": "/tool/(.*)", "destination": "/api/index" },
     { "source": "/(.*)", "destination": "/index.html" }
   ],
   "functions": {
     "api/index.py": {
-      "memory": 1024,
-      "maxDuration": 60
+      "includeFiles": "backend/**"
     },
     "api/messages.py": {
-      "memory": 1024,
-      "maxDuration": 60
+      "includeFiles": "backend/**"
     }
   }
 }

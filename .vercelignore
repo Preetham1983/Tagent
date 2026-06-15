@@ -1,0 +1,40 @@
+# Development and testing
+tests/
+temp/
+*.egg-info/
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+
+# Docker files
+Dockerfile
+docker-compose.yml
+*.dockerfile
+
+# Documentation
+*.md
+!README.md
+docs/
+
+# Build artifacts
+graphify-out/
+frontend/node_modules/
+frontend/dist/
+
+# Config files
+.env
+.env.local
+*.bat
+*.ps1
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Git
+.git/
+.gitignore
