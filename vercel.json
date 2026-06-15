@@ -1,37 +1,20 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": { "distDir": "frontend/dist" }
-    },
-    {
-      "src": "vercel_index.py",
-      "use": "@vercel/python",
-      "config": {
-        "memory": 1024,
-        "maxDuration": 60
-      }
-    },
-    {
-      "src": "vercel_messages.py",
-      "use": "@vercel/python",
-      "config": {
-        "memory": 1024,
-        "maxDuration": 60
-      }
-    }
+  "outputDirectory": "frontend/dist",
+  "rewrites": [
+    { "source": "/api/messages", "destination": "/api/messages.py" },
+    { "source": "/orchestrate", "destination": "/api/index.py" },
+    { "source": "/approve", "destination": "/api/index.py" },
+    { "source": "/health", "destination": "/api/index.py" },
+    { "source": "/settings/(.*)", "destination": "/api/index.py" },
+    { "source": "/auth/(.*)", "destination": "/api/index.py" },
+    { "source": "/tool/(.*)", "destination": "/api/index.py" },
+    { "source": "/(.*)", "destination": "/index.html" }
   ],
-  "routes": [
-    { "src": "/api/messages", "dest": "/vercel_messages.py" },
-    { "src": "/orchestrate", "dest": "/vercel_index.py" },
-    { "src": "/approve", "dest": "/vercel_index.py" },
-    { "src": "/health", "dest": "/vercel_index.py" },
-    { "src": "/settings/(.*)", "dest": "/vercel_index.py" },
-    { "src": "/auth/(.*)", "dest": "/vercel_index.py" },
-    { "src": "/tool/(.*)", "dest": "/vercel_index.py" },
-    { "handle": "filesystem" },
-    { "src": "/(.*)", "dest": "/index.html" }
-  ]
+  "functions": {
+    "api/*.py": {
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  }
 }

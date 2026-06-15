@@ -15,7 +15,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
 
 # ── Fix Python paths ──────────────────────────────────────────────────────
-_project_root = Path(__file__).resolve().parent
+_project_root = Path(__file__).resolve().parent.parent
 _teams_src = _project_root / "backend" / "services" / "teams-adapter-service" / "src"
 _orch_src = _project_root / "backend" / "services" / "orchestrator-service" / "src"
 

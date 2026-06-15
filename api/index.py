@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 # ── 1. Fix Python path so `tagent.*` imports resolve ──────────────────────
-_project_root = Path(__file__).resolve().parent
+_project_root = Path(__file__).resolve().parent.parent
 _orch_src = _project_root / "backend" / "services" / "orchestrator-service" / "src"
 _mcp_src = _project_root / "backend" / "services" / "mcp-tools-service" / "src"
 _orch_root = _project_root / "backend" / "services" / "orchestrator-service"
