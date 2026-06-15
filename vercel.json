@@ -9,12 +9,26 @@
     {
       "src": "api/index.py",
       "use": "@vercel/python",
-      "config": { "includeFiles": "backend/**" }
+      "config": {
+        "includeFiles": [
+          "backend/services/orchestrator-service/src/**",
+          "backend/services/orchestrator-service/main.py",
+          "backend/services/mcp-tools-service/src/**",
+          "backend/services/mcp-tools-service/main.py"
+        ]
+      }
     },
     {
       "src": "api/messages.py",
       "use": "@vercel/python",
-      "config": { "includeFiles": "backend/**" }
+      "config": {
+        "includeFiles": [
+          "backend/services/orchestrator-service/src/**",
+          "backend/services/orchestrator-service/main.py",
+          "backend/services/mcp-tools-service/src/**",
+          "backend/services/mcp-tools-service/main.py"
+        ]
+      }
     }
   ],
   "routes": [

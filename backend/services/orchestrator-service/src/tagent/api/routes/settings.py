@@ -15,7 +15,9 @@ from tagent.infrastructure.config.env_file import load_user_prefs, save_user_pre
 
 router = APIRouter(prefix="/settings")
 
-_MS_TOKEN_CACHE = os.path.join(os.path.expanduser("~"), ".tagent", "ms_graph_token_cache.json")
+def _ms_token_cache_path() -> str:
+    cache_dir = os.environ.get("TOKEN_CACHE_DIR", os.path.join(os.path.expanduser("~"), ".tagent"))
+    return os.path.join(cache_dir, "ms_graph_token_cache.json")
 
 
 @router.post("/jira")
@@ -83,7 +85,7 @@ async def get_settings_status() -> dict:
         },
         "teams": {
             "configured": teams_configured,
-            "session_active": os.path.isfile(_MS_TOKEN_CACHE),
+            "session_active": os.path.isfile(_ms_token_cache_path()),
             "can_auth": bool(s.ms_tenant_id and s.ms_client_id),
             "tenant_id": tenant_preview,
         },

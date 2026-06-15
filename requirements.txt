@@ -1,0 +1,29 @@
+# Vercel @vercel/python runtime — install these for the API lambdas.
+# These cover both the orchestrator-service and mcp-tools-service.
+
+# Core web framework
+fastapi>=0.115
+uvicorn>=0.30
+
+# LangGraph agent
+langgraph>=0.2
+langchain-core>=0.3
+
+# MCP protocol (client + server)
+mcp>=1.0
+
+# Azure OpenAI
+openai>=1.40
+
+# Data validation and settings
+pydantic>=2.7
+pydantic-settings>=2.3
+
+# HTTP client (used by MCP, Jira, Graph API tools)
+httpx>=0.27
+
+# Microsoft authentication (MSAL for Graph API / Teams)
+msal>=1.36.0
+
+# Environment file loading
+python-dotenv>=1.0
