@@ -27,9 +27,15 @@ async def orchestrate(req: OrchestrateRequest) -> dict:
         "user_tier": req.user_tier,
         "memory": [],
     }
-    result = await graph.ainvoke(
-        state, config={"configurable": {"thread_id": req.thread_id}}
-    )
+    try:
+        result = await graph.ainvoke(
+            state, config={"configurable": {"thread_id": req.thread_id}}
+        )
+    except Exception as exc:
+        import traceback
+        traceback.print_exc()
+        cause = str(exc)
+        raise HTTPException(status_code=500, detail=f"Orchestrator error: {cause[:400]}")
 
     tool_results = result.get("tool_results", [])
     dacl_result = result.get("dacl_result")
